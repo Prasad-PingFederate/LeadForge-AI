@@ -1,0 +1,373 @@
+"use client";
+
+import { useState } from "react";
+import { OutreachMessage } from "@/types";
+import {
+  Mail,
+  Linkedin,
+  MessageSquare,
+  ShieldCheck,
+  CheckCircle,
+  Send,
+  Play,
+  RotateCcw,
+  Sparkles,
+  ExternalLink,
+} from "lucide-react";
+import { updateOutreach, dispatchOutreach, postReplyFeedback } from "@/lib/api";
+
+interface OutreachCardProps {
+  message: OutreachMessage;
+  onRefresh?: () => void;
+}
+
+export default function OutreachCard({ message, onRefresh }: OutreachCardProps) {
+  const [activeTab, setActiveTab] = useState<"step1" | "step2" | "step3" | "linkedin" | "social">("step1");
+  const [subject, setSubject] = useState(message.subject || "");
+  const [step1, setStep1] = useState(message.body_step1 || "");
+  const [step2, setStep2] = useState(message.body_step2 || "");
+  const [step3, setStep3] = useState(message.body_step3 || "");
+  const [linkedinDm, setLinkedinDm] = useState(message.linkedin_dm || "");
+  const [socialReply, setSocialReply] = useState(message.social_reply || "");
+  const [status, setStatus] = useState<string>(message.status || "draft");
+
+  const [isSending, setIsSending] = useState(false);
+  const [sendResult, setSendResult] = useState<string | null>(null);
+
+  // Simulated reply test modal
+  const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
+  const [simulatedReply, setSimulatedReply] = useState("");
+  const [replyResult, setReplyResult] = useState<any>(null);
+
+  const handleSave = async () => {
+    try {
+      await updateOutreach(message.id, {
+        subject,
+        body_step1: step1,
+        body_step2: step2,
+        body_step3: step3,
+        linkedin_dm: linkedinDm,
+        social_reply: socialReply,
+      });
+      setSendResult("✓ Sequence edits saved!");
+      setTimeout(() => setSendResult(null), 3000);
+    } catch (e: any) {
+      setSendResult(`Error: ${e.message}`);
+    }
+  };
+
+  const handleApprove = async () => {
+    try {
+      await updateOutreach(message.id, { status: "approved" });
+      setStatus("approved");
+      setSendResult("✓ Approved for autonomous delivery");
+      setTimeout(() => setSendResult(null), 3000);
+    } catch (e: any) {
+      setSendResult(`Error: ${e.message}`);
+    }
+  };
+
+  const handleDispatch = async (dryRun: boolean) => {
+    setIsSending(true);
+    setSendResult(null);
+    try {
+      const res = await dispatchOutreach(message.id, dryRun);
+      if (res.success) {
+        setStatus(dryRun ? "sent_dry_run" : "sent");
+        setSendResult(
+          dryRun
+            ? `✓ [Dry-Run Safe Dispatch] Validated gates & generated unsubscribe token for ${res.recipient}`
+            : `✓ Live SMTP Dispatch completed for ${res.recipient}`
+        );
+        if (onRefresh) onRefresh();
+      } else {
+        setSendResult(`Delivery Blocked: ${res.error}`);
+      }
+    } catch (e: any) {
+      setSendResult(`Error: ${e.message}`);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSimulateReply = async () => {
+    if (!simulatedReply) return;
+    try {
+      const res = await postReplyFeedback(message.id, simulatedReply);
+      setReplyResult(res);
+      setStatus(res.lead_status);
+      if (onRefresh) onRefresh();
+    } catch (e: any) {
+      setReplyResult({ error: e.message });
+    }
+  };
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg transition-all hover:border-slate-700">
+      {/* Header */}
+      <div className="p-4 bg-slate-950/60 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-slate-100 text-sm">{message.company_name}</h3>
+            {message.overall_score !== undefined && (
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                {message.overall_score}/100 Fit
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-slate-400 font-mono mt-0.5 block">
+            {message.contact_name || "Decision Maker"} &lt;{message.contact_email || "unverified"}&gt;
+          </span>
+        </div>
+
+        {/* Status pill & Proof */}
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+              status === "sent"
+                ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+                : status === "sent_dry_run"
+                ? "bg-blue-950 text-blue-400 border border-blue-800"
+                : status === "approved"
+                ? "bg-amber-950 text-amber-400 border border-amber-800"
+                : "bg-slate-800 text-slate-400 border border-slate-700"
+            }`}
+          >
+            {status.replace("_", " ")}
+          </span>
+
+          {message.intent_source_url && (
+            <a
+              href={message.intent_source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="p-1 rounded text-slate-500 hover:text-emerald-400 transition-colors"
+              title="Inspect intent proof URL"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-800 bg-slate-950/30 text-xs font-medium px-4">
+        <button
+          onClick={() => setActiveTab("step1")}
+          className={`py-2.5 px-3 border-b-2 transition-colors ${
+            activeTab === "step1" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Email 1: Hook
+        </button>
+        <button
+          onClick={() => setActiveTab("step2")}
+          className={`py-2.5 px-3 border-b-2 transition-colors ${
+            activeTab === "step2" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Email 2: Value Proof
+        </button>
+        <button
+          onClick={() => setActiveTab("step3")}
+          className={`py-2.5 px-3 border-b-2 transition-colors ${
+            activeTab === "step3" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Email 3: Breakup
+        </button>
+        <button
+          onClick={() => setActiveTab("linkedin")}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === "linkedin" ? "border-sky-500 text-sky-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Linkedin className="w-3.5 h-3.5" />
+          <span>LinkedIn DM</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("social")}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            activeTab === "social" ? "border-orange-500 text-orange-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Social Reply</span>
+        </button>
+      </div>
+
+      {/* Sequence Editor Body */}
+      <div className="p-4 space-y-3">
+        {activeTab.startsWith("step") && (
+          <div>
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+              Subject Line
+            </label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+            {activeTab === "step1"
+              ? "Cold Email Step 1 (Signal-Personalized Hook & Low-Friction Ask)"
+              : activeTab === "step2"
+              ? "Cold Email Step 2 (Customer Proof Point)"
+              : activeTab === "step3"
+              ? "Cold Email Step 3 (Respectful Breakup)"
+              : activeTab === "linkedin"
+              ? "LinkedIn Connection Note / InMail (< 45 words)"
+              : "Helpful Non-Salesy Social Reply (HN / Reddit)"}
+          </label>
+
+          <textarea
+            rows={5}
+            value={
+              activeTab === "step1"
+                ? step1
+                : activeTab === "step2"
+                ? step2
+                : activeTab === "step3"
+                ? step3
+                : activeTab === "linkedin"
+                ? linkedinDm
+                : socialReply
+            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (activeTab === "step1") setStep1(val);
+              else if (activeTab === "step2") setStep2(val);
+              else if (activeTab === "step3") setStep3(val);
+              else if (activeTab === "linkedin") setLinkedinDm(val);
+              else setSocialReply(val);
+            }}
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-sans leading-relaxed focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        {/* Feedback alert banner */}
+        {sendResult && (
+          <div
+            className={`p-2.5 rounded-lg text-xs font-medium ${
+              sendResult.startsWith("✓")
+                ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60"
+                : "bg-rose-950/70 text-rose-400 border border-rose-800/60"
+            }`}
+          >
+            {sendResult}
+          </div>
+        )}
+      </div>
+
+      {/* Action Footer */}
+      <div className="p-4 bg-slate-950/60 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+          >
+            Save Draft
+          </button>
+          <button
+            onClick={handleApprove}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950 hover:bg-emerald-900 text-emerald-400 border border-emerald-800 transition-colors"
+          >
+            Approve Sequence
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Simulate reply test */}
+          <button
+            onClick={() => setIsReplyModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors flex items-center gap-1.5"
+            title="Simulate inbound prospect reply to test self-learning loop"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Test Reply</span>
+          </button>
+
+          {/* Dry-run dispatch */}
+          <button
+            disabled={isSending}
+            onClick={() => handleDispatch(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-900/60 hover:bg-blue-800/80 text-blue-300 border border-blue-700/60 transition-colors flex items-center gap-1.5"
+          >
+            <Play className="w-3 h-3" />
+            <span>Send (Dry-Run)</span>
+          </button>
+
+          {/* Live dispatch */}
+          <button
+            disabled={isSending}
+            onClick={() => handleDispatch(false)}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5"
+          >
+            <Send className="w-3 h-3" />
+            <span>Send Live</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Reply test modal */}
+      {isReplyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="font-bold text-slate-100 text-sm mb-1">
+              Simulate Inbound Prospect Reply
+            </h3>
+            <p className="text-xs text-slate-400 mb-3">
+              Tests the sentiment classifier and dynamic strategy weight adjustment.
+            </p>
+
+            <textarea
+              rows={3}
+              placeholder="e.g. 'Sounds interesting, can you send over pricing or a demo?' or 'Unsubscribe please'"
+              value={simulatedReply}
+              onChange={(e) => setSimulatedReply(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 mb-3 focus:outline-none focus:border-emerald-500"
+            />
+
+            {replyResult && (
+              <div className="mb-3 p-3 rounded bg-slate-950 border border-slate-800 text-xs space-y-1">
+                <div>
+                  <span className="text-slate-500">Sentiment: </span>
+                  <span className="font-bold uppercase text-emerald-400">{replyResult.sentiment}</span>
+                </div>
+                {replyResult.new_strategy_weight && (
+                  <div>
+                    <span className="text-slate-500">New Strategy Weight: </span>
+                    <span className="font-mono text-emerald-400 font-bold">{replyResult.new_strategy_weight}x</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsReplyModalOpen(false);
+                  setReplyResult(null);
+                }}
+                className="px-3 py-1.5 rounded text-xs text-slate-400 hover:bg-slate-800"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleSimulateReply}
+                className="px-3.5 py-1.5 rounded text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                Classify & Re-weight
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
