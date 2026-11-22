@@ -213,6 +213,15 @@ export interface RevenueSummary {
       verdict_badge: string;
       reason: string;
       criteria_passed_count: number;
+      composite_velocity_score?: number;
+      pool_tier?: string;
+      score_breakdown?: {
+        commission_yield_pts: number;
+        discount_depth_pts: number;
+        social_proof_pts: number;
+        impulse_fit_pts: number;
+        total_score: number;
+      };
       criteria: Record<string, boolean>;
     };
     where_to_post?: {
@@ -271,4 +280,18 @@ export interface N8nExportItem {
   estimated_commission_rupees: number;
   rating: number;
   review_count: number;
+}
+
+export interface ActivityFeedItem {
+  id: string;
+  asin: string;
+  title: string;
+  channel: string;
+  channel_badge: string;
+  subtag: string;
+  target_url: string;
+  referrer: string;
+  created_at: string;
+  deal_price: number;
+  est_commission_rupees: number;
 }

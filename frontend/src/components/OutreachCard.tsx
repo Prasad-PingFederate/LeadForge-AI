@@ -209,6 +209,9 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono" title="Passed strict 5-point gate: ≥35% off, ₹99–₹2,999, ≥4.2★, ≥500 reviews, ≥6% comm">
                   🟢 PROMOTE (Strict Gate: 5/5 Passed)
                 </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono" title="Explee-Style Pre-flight Copy Validator: Verified tag=dammaiprasad-21 & ascsubtag active">
+                  🛡️ Tag & Copy Validated
+                </span>
               </>
             )}
           </div>

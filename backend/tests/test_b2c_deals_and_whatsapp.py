@@ -422,3 +422,83 @@ def test_strict_promote_gate_criteria():
     res_perf = evaluate_deal_quality(deal_perfect)
     assert res_perf["verdict"] == "PROMOTE"
     assert "Strict Sales Standard passed" in res_perf["reason"]
+
+
+@pytest.mark.asyncio
+async def test_composite_velocity_score_and_pool_tier():
+    from app.core.deal_analyzer import evaluate_deal_quality
+
+    deal_high = {
+        "title": "Pigeon Kettle",
+        "category": "Home & Kitchen",
+        "effective_price": 599.0,
+        "discount_pct": 60,
+        "rating": 4.4,
+        "review_count": 18200,
+    }
+    res = evaluate_deal_quality(deal_high)
+    assert "composite_velocity_score" in res
+    assert res["composite_velocity_score"] >= 70
+    assert "Tier 1" in res["pool_tier"]
+    assert "score_breakdown" in res
+    assert res["score_breakdown"]["total_score"] == res["composite_velocity_score"]
+
+
+@pytest.mark.asyncio
+async def test_validate_deal_copy_engine():
+    from app.core.deal_analyzer import validate_deal_copy
+    from app.config import settings
+
+    valid_text = (
+        f"🔥 *TODAY'S VERIFIED PRICE DROP* 🔥\n\n"
+        f"Pigeon Kettle 1.8L\n"
+        f"📉 Deal Price: ₹599 ~MRP ₹1,499~ (60% OFF!)\n"
+        f"👉 Check Deal on Amazon: https://www.amazon.in/dp/B09W2GFM7Y?tag={settings.amazon_affiliate_tag}&ascsubtag=lf-wa-20261122-b09w2gfm7y"
+    )
+    res_valid = validate_deal_copy(valid_text, f"https://www.amazon.in/dp/B09W2GFM7Y?tag={settings.amazon_affiliate_tag}&ascsubtag=lf-wa")
+    assert res_valid["valid"] is True
+    assert res_valid["compliance_score"] == 100
+    assert res_valid["has_affiliate_tag"] is True
+    assert res_valid["has_price_disclosure"] is True
+
+    # Invalid text missing affiliate tag
+    invalid_text = "Check out this product on some website without tags."
+    res_invalid = validate_deal_copy(invalid_text, "https://example.com")
+    assert res_invalid["valid"] is False
+    assert len(res_invalid["warnings"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_pool_ladder_live_deals_filtering():
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/deals/live?verdict=PROMOTE")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "pool_ladder" in data
+        assert "promote" in data["pool_ladder"]
+        assert "hold" in data["pool_ladder"]
+        assert "kill" in data["pool_ladder"]
+        for d in data["deals"]:
+            assert d["quality_verdict"]["verdict"] == "PROMOTE"
+
+
+@pytest.mark.asyncio
+async def test_activity_feed_endpoint():
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/revenue/activity-feed")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert len(data["activity_feed"]) > 0
+        first_item = data["activity_feed"][0]
+        assert "channel" in first_item
+        assert "subtag" in first_item
+        assert "est_commission_rupees" in first_item

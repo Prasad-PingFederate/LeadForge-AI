@@ -16,6 +16,7 @@ from app.core.deal_analyzer import (
     format_whatsapp_deal_post,
     format_telegram_deal_post,
     extract_asin,
+    validate_deal_copy,
 )
 from app.config import settings
 
@@ -30,14 +31,26 @@ async def list_live_deals(
     category: Optional[str] = Query(None, description="Filter by category (e.g. Home & Kitchen, Personal Care)"),
     max_price: Optional[float] = Query(None, description="Max effective price in INR"),
     min_discount: Optional[int] = Query(None, description="Minimum discount percentage"),
+    verdict: Optional[str] = Query(None, description="Filter deals by pool ladder verdict (PROMOTE, HOLD, KILL)"),
     limit: int = Query(15, ge=1, le=100),
     force_refresh: bool = Query(False, description="Bypass cache and re-fetch from upstream"),
 ):
-    """Returns verified live deals from BharatBazaro with commission estimates."""
+    """Returns verified live deals from BharatBazaro with commission estimates and pool ladder tiering."""
     if force_refresh:
         all_deals = await fetch_live_deals(force_refresh=True)
     else:
         all_deals = await fetch_live_deals()
+
+    # Calculate overall pool ladder counts across entire catalog
+    pool_counts = {"promote": 0, "hold": 0, "kill": 0, "total": len(all_deals)}
+    for d in all_deals:
+        v = evaluate_deal_quality(d).get("verdict", "KILL")
+        if v == "PROMOTE":
+            pool_counts["promote"] += 1
+        elif v == "HOLD":
+            pool_counts["hold"] += 1
+        else:
+            pool_counts["kill"] += 1
 
     if query or category or max_price is not None or min_discount is not None:
         matched = await search_live_deals(
@@ -45,10 +58,10 @@ async def list_live_deals(
             category=category,
             max_price=max_price,
             min_discount=min_discount,
-            limit=limit,
+            limit=limit * 2 if verdict else limit,
         )
     else:
-        matched = all_deals[:limit]
+        matched = all_deals
 
     # Enrich with canonical affiliate link, commission info, and quality verdict
     enriched_deals = []
@@ -60,6 +73,9 @@ async def list_live_deals(
         quality = evaluate_deal_quality(d)
         where_to_post = generate_where_to_post_recommendations(cat, price, d.get("title", ""))
 
+        if verdict and quality.get("verdict", "").upper() != verdict.strip().upper():
+            continue
+
         enriched_deals.append({
             **d,
             "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag="bb-api"),
@@ -67,13 +83,31 @@ async def list_live_deals(
             "quality_verdict": quality,
             "where_to_post": where_to_post,
         })
+        if len(enriched_deals) >= limit:
+            break
 
     return {
         "count": len(enriched_deals),
         "total_available": len(all_deals),
+        "pool_ladder": pool_counts,
         "source": settings.bharatbazaro_live_deals_url,
         "deals": enriched_deals,
     }
+
+
+class CopyValidationRequest(BaseModel):
+    message: str
+    affiliate_url: Optional[str] = ""
+
+
+@router.post("/validate-copy")
+async def validate_copy_endpoint(payload: CopyValidationRequest):
+    """
+    Explee-Style Pre-flight Copy Validator Endpoint:
+    Checks compliance of generated WhatsApp/Telegram deal text before broadcasting.
+    """
+    res = validate_deal_copy(payload.message, payload.affiliate_url or "")
+    return res
 
 
 @router.get("/live/{asin}")

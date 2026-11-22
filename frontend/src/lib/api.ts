@@ -1,4 +1,4 @@
-import { Campaign, CampaignDetail, Lead, OutreachMessage, ProgressState, RevenueSummary } from "@/types";
+import { Campaign, CampaignDetail, Lead, OutreachMessage, ProgressState, RevenueSummary, ActivityFeedItem } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
@@ -194,4 +194,14 @@ export async function trackDealClick(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }).catch(() => {});
+}
+
+export async function fetchActivityFeed(
+  limit: number = 25
+): Promise<{ status: string; count: number; activity_feed: ActivityFeedItem[] }> {
+  const res = await fetch(`${API_BASE}/revenue/activity-feed?limit=${limit}`);
+  if (!res.ok) {
+    return { status: "error", count: 0, activity_feed: [] };
+  }
+  return res.json();
 }

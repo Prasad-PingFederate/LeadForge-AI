@@ -270,11 +270,51 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
         verdict_badge = "🔴 KILL"
         reason = "Fails sales manager quality thresholds."
 
+    # Apollo-Style Composite Conversion Velocity Score (0-100)
+    # 1. Commission yield (up to 30 pts)
+    est_comm_val = comm_info["estimated_commission_rupees"]
+    score_commission = min(30, int(est_comm_val * 0.25)) if not is_zero_roi else 0
+
+    # 2. Discount depth (up to 25 pts)
+    score_discount = min(25, int(disc * 0.45))
+
+    # 3. Social proof trust (up to 25 pts)
+    rating_pts = int((max(0.0, rating - 3.5) / 1.5) * 15) if rating >= 3.5 else 0
+    reviews_pts = min(10, int(reviews / 500)) if reviews >= 100 else 0
+    score_trust = min(25, rating_pts + reviews_pts)
+
+    # 4. Impulse price fit (up to 20 pts)
+    if 199.0 <= price <= 1499.0:
+        score_price = 20
+    elif 99.0 <= price <= 2999.0:
+        score_price = 12
+    else:
+        score_price = 4
+
+    composite_score = min(100, score_commission + score_discount + score_trust + score_price)
+    if is_zero_roi or (rating < 4.0 and reviews > 50):
+        composite_score = min(composite_score, 35)
+
+    pool_tier = (
+        "Tier 1: Instant VIP Broadcast"
+        if verdict == "PROMOTE"
+        else ("Tier 2: Targeted / Evening Hold" if verdict == "HOLD" else "Tier 3: Suppressed")
+    )
+
     return {
         "verdict": verdict,
         "verdict_badge": verdict_badge,
         "reason": reason,
         "criteria_passed_count": criteria_passed,
+        "composite_velocity_score": composite_score,
+        "pool_tier": pool_tier,
+        "score_breakdown": {
+            "commission_yield_pts": score_commission,
+            "discount_depth_pts": score_discount,
+            "social_proof_pts": score_trust,
+            "impulse_fit_pts": score_price,
+            "total_score": composite_score,
+        },
         "criteria": {
             "discount_ge_35pct": c1_discount,
             "price_between_99_and_2999": c2_price,
@@ -283,6 +323,41 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
             "commission_ge_6pct": c5_commission,
             "not_zero_commission": c6_not_zero_roi,
         },
+    }
+
+
+def validate_deal_copy(text: str, affiliate_url: str = "") -> Dict[str, Any]:
+    """
+    Explee-Style Pre-flight Copy Validator:
+    Verifies that generated deal messages meet affiliate compliance and conversion standards.
+    """
+    tag = settings.amazon_affiliate_tag
+    has_tag = tag in (affiliate_url or "") or tag in (text or "")
+    has_subtag = "ascsubtag=" in (affiliate_url or "") or "lf-" in (text or "")
+    has_price = "₹" in (text or "")
+    has_cta = any(w in (text or "").lower() for w in ["check", "buy", "deal", "amazon", "claim", "grab", "order"])
+    length_ok = 50 <= len(text or "") <= 2500
+
+    warnings = []
+    if not has_tag:
+        warnings.append(f"Missing affiliate tag '{tag}'. Commissions will not track.")
+    if not has_subtag:
+        warnings.append("Missing ascsubtag. Channel attribution will be lost.")
+    if not has_price:
+        warnings.append("No price symbol (₹) detected in message body.")
+
+    is_valid = has_tag and length_ok and has_price
+
+    return {
+        "valid": is_valid,
+        "compliance_score": 100 if is_valid else (70 if has_tag else 30),
+        "has_affiliate_tag": has_tag,
+        "has_subtag": has_subtag,
+        "has_price_disclosure": has_price,
+        "has_clear_cta": has_cta,
+        "length": len(text or ""),
+        "warnings": warnings,
+        "status_badge": "🟢 COMPLIANT" if is_valid else "⚠️ ACTION NEEDED",
     }
 
 

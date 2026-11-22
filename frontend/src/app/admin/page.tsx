@@ -24,11 +24,13 @@ import {
   Copy,
   Plus,
 } from "lucide-react";
-import { fetchRevenueSummary, trackDealClick } from "@/lib/api";
-import { RevenueSummary, PostAttribution } from "@/types";
+import { fetchRevenueSummary, trackDealClick, fetchActivityFeed } from "@/lib/api";
+import { RevenueSummary, PostAttribution, ActivityFeedItem } from "@/types";
 
 export default function RevenueDashboard() {
   const [data, setData] = useState<RevenueSummary | null>(null);
+  const [activityFeed, setActivityFeed] = useState<ActivityFeedItem[]>([]);
+  const [verdictFilter, setVerdictFilter] = useState<"ALL" | "PROMOTE" | "HOLD" | "KILL">("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedSubtag, setCopiedSubtag] = useState<string | null>(null);
@@ -75,6 +77,42 @@ export default function RevenueDashboard() {
     setTimeout(() => setCopiedN8nUrl(false), 2000);
   };
 
+  const handleOneClickWhatsApp = (deal: any) => {
+    const subtag = deal.subtag || `lf-wa-manual-${deal.asin.toLowerCase()}`;
+    const affUrl = `https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${subtag}`;
+    const savings = Math.max(0, deal.mrp - deal.deal_price);
+    const msg = `🔥 *VERIFIED PRICE DROP: ${deal.name}*\n\n` +
+      `📉 *Deal Price: ₹${deal.deal_price.toLocaleString("en-IN")}* ~MRP ₹${deal.mrp.toLocaleString("en-IN")}~ (${deal.discount_pct}% OFF)\n` +
+      `💰 *You Save: ₹${savings.toLocaleString("en-IN")}*\n\n` +
+      `👉 *Order on Amazon (Free Prime Delivery):*\n${affUrl}\n\n` +
+      `_(Deal live now on Amazon India — grab before stock sells out!)_`;
+
+    trackDealClick({
+      asin: deal.asin,
+      channel: "whatsapp",
+      subtag: subtag,
+      campaign_id: deal.campaign_id,
+    });
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
+  const handleOneClickTelegram = (deal: any) => {
+    const subtag = deal.subtag || `lf-tg-manual-${deal.asin.toLowerCase()}`;
+    const affUrl = `https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${subtag}`;
+    const msg = `🚨 **PRICE DROP ALERT** 🚨\n\n` +
+      `**${deal.name}**\n\n` +
+      `🏷 Price: **₹${deal.deal_price.toLocaleString("en-IN")}** ~₹${deal.mrp.toLocaleString("en-IN")}~ (${deal.discount_pct}% Off)\n\n` +
+      `🛒 **Buy on Amazon:** [Check Deal Now](${affUrl})`;
+
+    trackDealClick({
+      asin: deal.asin,
+      channel: "telegram",
+      subtag: subtag,
+      campaign_id: deal.campaign_id,
+    });
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(affUrl)}&text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -82,6 +120,10 @@ export default function RevenueDashboard() {
       setData(res);
       if (res.average_commission_per_sale_inr) {
         setCalcAvgPrice(Math.round(res.average_commission_per_sale_inr / 0.08));
+      }
+      const feedRes = await fetchActivityFeed(25);
+      if (feedRes && feedRes.activity_feed) {
+        setActivityFeed(feedRes.activity_feed);
       }
       setError(null);
     } catch (err: any) {
@@ -93,6 +135,13 @@ export default function RevenueDashboard() {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(async () => {
+      const feedRes = await fetchActivityFeed(25);
+      if (feedRes && feedRes.activity_feed) {
+        setActivityFeed(feedRes.activity_feed);
+      }
+    }, 12000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading && !data) {
@@ -780,17 +829,70 @@ export default function RevenueDashboard() {
         </div>
       </div>
 
-      {/* Phase 3: Deal Quality Filter & Economics Table */}
+      {/* Phase 3: Deal Quality Filter & Pool Ladder Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div className="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span>Phase 3 Quality Gated Deals (Promote / Hold / Kill Verdicts)</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Only deals passing the 6 sales manager criteria (≥35% discount, ₹99–₹2,999, ≥4.2 rating, ≥500 reviews, ≥6% commission) earn the 🟢 PROMOTE verdict.
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+                Pool Ladder Engine
+              </span>
+              <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>Phase 3 Quality Gated Deals (Apollo & Explee Pool Ladder)</span>
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Deals scored by conversion velocity (0–100) factoring in commission yield, discount depth, trust rating, and impulse price sweet spot.
             </p>
+          </div>
+
+          {/* Pool Ladder Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setVerdictFilter("ALL")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                verdictFilter === "ALL"
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+              }`}
+            >
+              All Deals ({data?.recent_deals?.length || 0})
+            </button>
+            <button
+              onClick={() => setVerdictFilter("PROMOTE")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                verdictFilter === "PROMOTE"
+                  ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                  : "bg-slate-950 text-emerald-400/80 hover:text-emerald-300 border border-slate-800"
+              }`}
+            >
+              🟢 PROMOTE (
+              {data?.recent_deals?.filter((d) => (d.quality_verdict?.verdict || "HOLD") === "PROMOTE").length || 0}
+              )
+            </button>
+            <button
+              onClick={() => setVerdictFilter("HOLD")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                verdictFilter === "HOLD"
+                  ? "bg-amber-950 text-amber-300 border border-amber-700"
+                  : "bg-slate-950 text-amber-400/80 hover:text-amber-300 border border-slate-800"
+              }`}
+            >
+              🟡 HOLD (
+              {data?.recent_deals?.filter((d) => (d.quality_verdict?.verdict || "HOLD") === "HOLD").length || 0}
+              )
+            </button>
+            <button
+              onClick={() => setVerdictFilter("KILL")}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                verdictFilter === "KILL"
+                  ? "bg-rose-950 text-rose-300 border border-rose-700"
+                  : "bg-slate-950 text-rose-400/80 hover:text-rose-300 border border-slate-800"
+              }`}
+            >
+              🔴 KILL ({data?.recent_deals?.filter((d) => d.quality_verdict?.verdict === "KILL").length || 0})
+            </button>
           </div>
         </div>
 
@@ -798,77 +900,119 @@ export default function RevenueDashboard() {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
               <tr>
-                <th className="py-3 px-4">Quality Verdict</th>
+                <th className="py-3 px-4">Pool Verdict & Velocity</th>
                 <th className="py-3 px-4">Deal Title / ASIN</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Deal Price / MRP</th>
                 <th className="py-3 px-4">Comm. Rate</th>
                 <th className="py-3 px-4 text-emerald-400 font-bold">Est. Comm. / Sale</th>
                 <th className="py-3 px-4 text-amber-300">Sales to ₹10L</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-right">Instant Launch</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-300">
               {data?.recent_deals && data.recent_deals.length > 0 ? (
-                data.recent_deals.map((deal, idx) => {
-                  const verdict = deal.quality_verdict?.verdict || (deal.commission_rate_percent >= 6 && deal.discount_pct >= 35 ? "PROMOTE" : "HOLD");
-                  return (
-                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold font-mono inline-flex items-center gap-1 ${
-                          verdict === "PROMOTE" ? "bg-emerald-950 text-emerald-300 border border-emerald-800" :
-                          verdict === "HOLD" ? "bg-amber-950 text-amber-300 border border-amber-800" :
-                          "bg-rose-950 text-rose-300 border border-rose-800"
-                        }`}>
-                          {verdict === "PROMOTE" ? "🟢 PROMOTE" : verdict === "HOLD" ? "🟡 HOLD" : "🔴 KILL"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-100 max-w-xs truncate" title={deal.name}>
-                          {deal.name}
-                        </div>
-                        <div className="font-mono text-[11px] text-slate-500">ASIN: {deal.asin}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
-                          {deal.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono">
-                        <div className="text-slate-100 font-bold">₹{deal.deal_price.toLocaleString("en-IN")}</div>
-                        <div className="text-slate-500 text-[11px] line-through">₹{deal.mrp.toLocaleString("en-IN")} ({deal.discount_pct}% off)</div>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-200">
-                        {deal.commission_rate_percent}%
-                      </td>
-                      <td className="py-3 px-4 font-mono font-black text-sm text-emerald-400 bg-emerald-950/20">
-                        +₹{deal.estimated_commission_rupees.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-amber-300 font-semibold">
-                        {deal.sales_needed_for_10_lakh.toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <a
-                          href={`https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${deal.subtag}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() =>
-                            trackDealClick({
-                              asin: deal.asin,
-                              channel: "admin",
-                              subtag: deal.subtag,
-                              campaign_id: deal.campaign_id,
-                            })
-                          }
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] transition-colors"
-                        >
-                          <span>Open Deal</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })
+                data.recent_deals
+                  .filter((deal) => {
+                    const verdict =
+                      deal.quality_verdict?.verdict ||
+                      (deal.commission_rate_percent >= 6 && deal.discount_pct >= 35 ? "PROMOTE" : "HOLD");
+                    if (verdictFilter === "ALL") return true;
+                    return verdict === verdictFilter;
+                  })
+                  .map((deal, idx) => {
+                    const verdict =
+                      deal.quality_verdict?.verdict ||
+                      (deal.commission_rate_percent >= 6 && deal.discount_pct >= 35 ? "PROMOTE" : "HOLD");
+                    const score =
+                      deal.quality_verdict?.composite_velocity_score ??
+                      (verdict === "PROMOTE" ? 85 : verdict === "HOLD" ? 60 : 35);
+                    return (
+                      <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold font-mono inline-flex items-center gap-1 ${
+                              verdict === "PROMOTE"
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                                : verdict === "HOLD"
+                                  ? "bg-amber-950 text-amber-300 border border-amber-800"
+                                  : "bg-rose-950 text-rose-300 border border-rose-800"
+                            }`}
+                          >
+                            {verdict === "PROMOTE" ? "🟢 PROMOTE" : verdict === "HOLD" ? "🟡 HOLD" : "🔴 KILL"}
+                          </span>
+                          <div className="text-[10px] text-slate-400 font-mono mt-1">
+                            Velocity: <span className="font-bold text-emerald-400">{score}/100</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-100 max-w-xs truncate" title={deal.name}>
+                            {deal.name}
+                          </div>
+                          <div className="font-mono text-[11px] text-slate-500">ASIN: {deal.asin}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
+                            {deal.category}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono">
+                          <div className="text-slate-100 font-bold">₹{deal.deal_price.toLocaleString("en-IN")}</div>
+                          <div className="text-slate-500 text-[11px] line-through">
+                            ₹{deal.mrp.toLocaleString("en-IN")} ({deal.discount_pct}% off)
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-200">
+                          {deal.commission_rate_percent}%
+                        </td>
+                        <td className="py-3 px-4 font-mono font-black text-sm text-emerald-400 bg-emerald-950/20">
+                          +₹{deal.estimated_commission_rupees.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-amber-300 font-semibold">
+                          {deal.sales_needed_for_10_lakh.toLocaleString("en-IN")}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleOneClickWhatsApp(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-[11px] font-semibold transition-colors"
+                              title="Format and open directly in WhatsApp Web"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              <span>WhatsApp</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOneClickTelegram(deal)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-300 text-[11px] font-semibold transition-colors"
+                              title="Format and open directly in Telegram"
+                            >
+                              <Send className="w-3 h-3" />
+                              <span>Telegram</span>
+                            </button>
+                            <a
+                              href={`https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${deal.subtag}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() =>
+                                trackDealClick({
+                                  asin: deal.asin,
+                                  channel: "admin",
+                                  subtag: deal.subtag,
+                                  campaign_id: deal.campaign_id,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] transition-colors"
+                              title="Open on Amazon"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
               ) : (
                 <tr>
                   <td colSpan={8} className="py-6 text-center text-slate-500">
@@ -881,36 +1025,91 @@ export default function RevenueDashboard() {
         </div>
       </div>
 
-      {/* Real-time Clicks Activity Audit Log */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <MousePointerClick className="w-4 h-4 text-cyan-400" />
-          <span>Real-Time Click Attribution Log (Amazon Associates Subtags)</span>
-        </h2>
-        {data?.recent_clicks && data.recent_clicks.length > 0 ? (
-          <div className="divide-y divide-slate-800">
-            {data.recent_clicks.map((clk) => (
-              <div key={clk.id} className="py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
-                    clk.channel === "whatsapp" ? "bg-emerald-950 text-emerald-400 border border-emerald-800" :
-                    clk.channel === "telegram" ? "bg-sky-950 text-sky-400 border border-sky-800" :
-                    clk.channel === "reddit" ? "bg-orange-950 text-orange-400 border border-orange-800" :
-                    "bg-slate-950 text-slate-300 border border-slate-800"
-                  }`}>
-                    {clk.channel}
-                  </span>
-                  <span className="font-mono text-slate-200">ASIN: {clk.asin}</span>
-                  <span className="font-mono text-slate-500 text-[11px]">{clk.subtag}</span>
-                </div>
-                <div className="font-mono text-slate-500 text-[11px]">
-                  {new Date(clk.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </div>
-              </div>
-            ))}
+      {/* Apollo-Style Real-time Live Click Activity Feed */}
+      <div className="bg-slate-900 border border-cyan-900/40 rounded-xl p-6 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <MousePointerClick className="w-4 h-4 text-cyan-400" />
+                <span>Apollo-Style Live Click Activity Stream</span>
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Real-time click events stream with channel attribution, unique <code className="text-cyan-300 font-mono">ascsubtag</code>, and realized commission yield.
+            </p>
+          </div>
+          <button
+            onClick={loadData}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Refresh Feed</span>
+          </button>
+        </div>
+
+        {activityFeed && activityFeed.length > 0 ? (
+          <div className="divide-y divide-slate-800 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Timestamp</th>
+                  <th className="py-2.5 px-3">Channel</th>
+                  <th className="py-2.5 px-3">Product / ASIN</th>
+                  <th className="py-2.5 px-3">Attribution Subtag</th>
+                  <th className="py-2.5 px-3">Referrer</th>
+                  <th className="py-2.5 px-3 text-right text-emerald-400">Est. Yield / Sale</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-slate-300 font-mono text-[11px]">
+                {activityFeed.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="py-2.5 px-3 text-slate-400">
+                      {new Date(item.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          item.channel === "whatsapp"
+                            ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                            : item.channel === "telegram"
+                              ? "bg-sky-950 text-sky-300 border border-sky-800"
+                              : item.channel === "reddit"
+                                ? "bg-orange-950 text-orange-300 border border-orange-800"
+                                : "bg-slate-950 text-slate-300 border border-slate-800"
+                        }`}
+                      >
+                        {item.channel_badge || item.channel}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-sans font-medium text-slate-200 max-w-xs truncate" title={item.title}>
+                      {item.title} <span className="text-[10px] text-slate-500 font-mono">({item.asin})</span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <code className="text-cyan-300 bg-cyan-950/40 px-1.5 py-0.5 rounded border border-cyan-800/60 text-[10px]">
+                        {item.subtag}
+                      </code>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-400 font-sans text-[11px]">
+                      {item.referrer || "Direct"}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-bold text-emerald-400">
+                      +₹{item.est_commission_rupees.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
-          <p className="text-slate-500 text-xs">No clicks recorded yet. Share deal broadcasts to begin real-time attribution.</p>
+          <p className="text-slate-500 text-xs py-4 text-center">
+            No live clicks recorded yet. Share deal broadcasts to begin real-time attribution.
+          </p>
         )}
       </div>
     </div>
