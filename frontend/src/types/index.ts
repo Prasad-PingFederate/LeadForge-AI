@@ -224,4 +224,51 @@ export interface RevenueSummary {
     };
   }>;
   posts_attribution?: PostAttribution[];
+  daily_performance?: DailyPerformanceSummary;
+}
+
+export interface DailyPerformanceSummary {
+  top_3_deals: Array<{
+    asin: string;
+    title: string;
+    clicks: number;
+    est_commission: number;
+  }>;
+  best_performing_channel: {
+    channel: string;
+    clicks: number;
+    share_percent: number;
+    label: string;
+    vs_telegram: string;
+  };
+  pace_vs_target: {
+    target_90_days: number;
+    daily_target_runrate: number;
+    current_daily_runrate: number;
+    pace_status: "ON TRACK" | "NEEDS ACCELERATION" | "BEHIND" | string;
+    runrate_gap: number;
+  };
+  remaining_posts_needed_today: {
+    daily_quota: number;
+    posts_completed_today: number;
+    remaining_today: number;
+  };
+}
+
+export interface N8nExportItem {
+  asin: string;
+  title: string;
+  price: number;
+  mrp: number;
+  discount: number;
+  category: string;
+  affiliate_url: string;
+  whatsapp_message: string;
+  telegram_message: string;
+  unique_tag: string;
+  quality_verdict: string;
+  commission_rate_percent: number;
+  estimated_commission_rupees: number;
+  rating: number;
+  review_count: number;
 }

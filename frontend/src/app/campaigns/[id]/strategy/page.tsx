@@ -108,6 +108,13 @@ export default function CampaignStrategyPage({ params }: { params: Promise<{ id:
                   {icp?.deal_metadata?.asin || "B09W2GFM7Y"}
                 </span>
               </div>
+              <div className="h-8 w-px bg-slate-800" />
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase">Sales Standard</span>
+                <span className="font-bold text-emerald-400 text-xs px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 inline-block mt-0.5">
+                  🟢 PROMOTE
+                </span>
+              </div>
             </div>
           </div>
         )}

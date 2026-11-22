@@ -1,6 +1,8 @@
 import logging
 from typing import Optional, Dict, Any, List
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from app.core.deal_analyzer import (
     fetch_live_deals,
@@ -11,6 +13,9 @@ from app.core.deal_analyzer import (
     to_canonical_affiliate_url,
     evaluate_deal_quality,
     generate_where_to_post_recommendations,
+    format_whatsapp_deal_post,
+    format_telegram_deal_post,
+    extract_asin,
 )
 from app.config import settings
 
@@ -117,4 +122,94 @@ async def list_top_converting_deals(limit: int = Query(10, ge=1, le=50)):
     return {
         "count": len(enriched),
         "deals": enriched,
+    }
+
+
+@router.post("/export-n8n")
+@router.get("/export-n8n")
+async def export_deals_for_n8n(
+    limit: int = Query(25, ge=1, le=100),
+    only_promote: bool = Query(True, description="Only export deals passing strict PROMOTE gate"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
+    min_discount: Optional[int] = Query(30, description="Minimum discount percentage"),
+):
+    """
+    n8n-Ready Webhook Export (Feature 4):
+    Returns approved/curated deals in clean JSON format:
+    { asin, title, price, mrp, discount, affiliate_url, whatsapp_message, telegram_message, unique_tag }
+    Allows automated n8n workflows to immediately push deals to Telegram channels or WhatsApp broadcasts.
+    """
+    deals = await fetch_live_deals()
+    d_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    exported = []
+
+    for d in deals:
+        if d.get("expired"):
+            continue
+
+        price = float(d.get("effective_price") or d.get("list_price") or 599.0)
+        disc = int(d.get("discount_pct") or 0)
+        cat = d.get("category") or "Home & Kitchen"
+        title = d.get("title") or "Amazon Price Drop"
+        asin = d.get("asin") or extract_asin(d.get("affiliate_url", "")) or "B09W2GFM7Y"
+
+        if min_discount and disc < min_discount:
+            continue
+        if category and category.lower() not in cat.lower():
+            continue
+
+        quality = evaluate_deal_quality(d)
+        if only_promote and quality.get("verdict") != "PROMOTE":
+            continue
+
+        unique_tag = f"lf-n8n-{d_str}-{asin.lower()[:10]}"
+        aff_url = to_canonical_affiliate_url(asin, subtag=unique_tag)
+        mrp = float(d.get("mrp") or (price * 1.5))
+        rating = float(d.get("rating") or 4.3)
+        reviews = int(d.get("review_count") or 3500)
+        comm = compute_commission_estimate(cat, price)
+
+        wa_msg = format_whatsapp_deal_post(
+            title=title,
+            deal_price=price,
+            mrp=mrp,
+            asin=asin,
+            rating=rating,
+            reviews_count=reviews,
+            subtag=unique_tag,
+        )
+        tg_msg = format_telegram_deal_post(
+            title=title,
+            deal_price=price,
+            mrp=mrp,
+            asin=asin,
+            subtag=unique_tag,
+        )
+
+        exported.append({
+            "asin": asin,
+            "title": title,
+            "price": price,
+            "mrp": mrp,
+            "discount": disc,
+            "category": cat,
+            "affiliate_url": aff_url,
+            "whatsapp_message": wa_msg,
+            "telegram_message": tg_msg,
+            "unique_tag": unique_tag,
+            "quality_verdict": quality.get("verdict", "PROMOTE"),
+            "commission_rate_percent": comm["commission_rate_percent"],
+            "estimated_commission_rupees": comm["estimated_commission_rupees"],
+            "rating": rating,
+            "review_count": reviews,
+        })
+
+        if len(exported) >= limit:
+            break
+
+    return {
+        "status": "success",
+        "count": len(exported),
+        "target_affiliate_tag": settings.amazon_affiliate_tag,
+        "deals": exported,
     }

@@ -9,6 +9,7 @@ from app.core.deal_analyzer import (
     format_x_deal_post,
     to_canonical_affiliate_url,
     generate_channel_subtag,
+    generate_3step_sequence,
 )
 
 logger = logging.getLogger(__name__)
@@ -100,20 +101,21 @@ class OutreachAgent:
         rd_subtag = generate_channel_subtag("reddit", campaign_id=campaign_id, asin=asin)
         x_subtag = generate_channel_subtag("x", campaign_id=campaign_id, asin=asin)
 
+        # 3-Step Sequence Generation (Feature 3)
+        seq = generate_3step_sequence({
+            "title": product_name,
+            "effective_price": deal_price,
+            "mrp": mrp,
+            "asin": asin,
+            "rating": rating,
+            "review_count": reviews_count,
+        }, campaign_id=campaign_id)
+
         deal_url = to_canonical_affiliate_url(asin, subtag=wa_subtag)
 
         draft["deal_affiliate_url"] = deal_url
         draft["subtag"] = wa_subtag
-        draft["whatsapp_message"] = format_whatsapp_deal_post(
-            title=product_name,
-            deal_price=deal_price,
-            mrp=mrp,
-            asin=asin,
-            rating=rating,
-            reviews_count=reviews_count,
-            subtag=wa_subtag,
-            campaign_id=campaign_id,
-        )
+        draft["whatsapp_message"] = seq["step1_morning"]["message"]
         draft["telegram_message"] = format_telegram_deal_post(
             title=product_name,
             deal_price=deal_price,
@@ -124,6 +126,10 @@ class OutreachAgent:
         )
 
         if is_deal_mode:
+            draft["body_step1"] = seq["step1_morning"]["message"]
+            draft["body_step2"] = seq["step2_evening"]["message"]
+            draft["body_step3"] = seq["step3_followup"]["message"]
+            draft["subject"] = f"🔥 Price Drop Alert: {product_name[:40]} down to ₹{int(deal_price):,}"
             draft["social_reply"] = format_reddit_deal_post(
                 title=product_name,
                 deal_price=deal_price,

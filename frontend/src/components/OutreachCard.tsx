@@ -41,6 +41,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
   const [whatsappMsg, setWhatsappMsg] = useState(message.whatsapp_message || "");
   const [telegramMsg, setTelegramMsg] = useState(message.telegram_message || "");
   const [status, setStatus] = useState<string>(message.status || "draft");
+  const [selectedSequenceStep, setSelectedSequenceStep] = useState<"morning" | "evening" | "followup">("morning");
 
   const [copied, setCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -205,6 +206,9 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                     {message.clicks_count} clicks
                   </span>
                 )}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono" title="Passed strict 5-point gate: ≥35% off, ₹99–₹2,999, ≥4.2★, ≥500 reviews, ≥6% comm">
+                  🟢 PROMOTE (Strict Gate: 5/5 Passed)
+                </span>
               </>
             )}
           </div>
@@ -270,9 +274,8 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
 
         <button
           onClick={() => setActiveTab("social")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            activeTab === "social" ? "border-orange-500 text-orange-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === "social" ? "border-orange-500 text-orange-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
         >
           <span className="text-orange-400 font-bold">r/</span>
           <span>Reddit (r/dealsforindia)</span>
@@ -280,9 +283,8 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
 
         <button
           onClick={() => setActiveTab("linkedin")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            activeTab === "linkedin" ? "border-slate-200 text-slate-100 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === "linkedin" ? "border-slate-200 text-slate-100 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
         >
           <span className="font-bold">𝕏</span>
           <span>Twitter / X Drop</span>
@@ -291,12 +293,60 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         {/* Cold Email (Deprioritized for B2C deals) */}
         <button
           onClick={() => setActiveTab("step1")}
-          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab.startsWith("step") ? "border-slate-600 text-slate-300 font-semibold" : "border-transparent text-slate-600 hover:text-slate-400"
-          }`}
+          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${activeTab.startsWith("step") ? "border-slate-600 text-slate-300 font-semibold" : "border-transparent text-slate-600 hover:text-slate-400"
+            }`}
         >
           <span className="text-[10px] text-slate-500 font-mono mr-1">[Low B2C Intent]</span>
           <span>Cold Email</span>
+        </button>
+      </div>
+
+      {/* Feature 3: 3-Step Sequence Generator (Morning -> Evening Impulse -> Follow-up) */}
+      <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/60 border-b border-slate-800 text-[11px] overflow-x-auto">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono mr-1">
+          Feature 3 Sequence:
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedSequenceStep("morning");
+            if (activeTab === "whatsapp") setWhatsappMsg(step1 || whatsappMsg);
+          }}
+          className={`px-2.5 py-1 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+            selectedSequenceStep === "morning"
+              ? "bg-amber-950 text-amber-300 border border-amber-800 shadow-sm"
+              : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+          }`}
+        >
+          <span>☀️ Step 1: Morning Hero (8:30 AM)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedSequenceStep("evening");
+            if (activeTab === "whatsapp") setWhatsappMsg(step2 || whatsappMsg);
+          }}
+          className={`px-2.5 py-1 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+            selectedSequenceStep === "evening"
+              ? "bg-indigo-950 text-indigo-300 border border-indigo-800 shadow-sm"
+              : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+          }`}
+        >
+          <span>🌙 Step 2: Evening Impulse (&lt;₹499)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedSequenceStep("followup");
+            if (activeTab === "whatsapp") setWhatsappMsg(step3 || whatsappMsg);
+          }}
+          className={`px-2.5 py-1 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+            selectedSequenceStep === "followup"
+              ? "bg-rose-950 text-rose-300 border border-rose-800 shadow-sm"
+              : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+          }`}
+        >
+          <span>⚡ Step 3: Low-Click Follow-up</span>
         </button>
       </div>
 

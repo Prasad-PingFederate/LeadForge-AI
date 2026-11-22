@@ -13,6 +13,7 @@ from app.core.deal_analyzer import (
     evaluate_deal_quality,
     generate_where_to_post_recommendations,
     get_channel_performance_weights,
+    generate_3step_sequence,
 )
 from app.core.cache import TTLCache
 from app.agents.profiler_agent import profiler_agent
@@ -307,3 +308,117 @@ def test_channel_performance_learning_weights():
     weights = get_channel_performance_weights({"whatsapp": 85, "telegram": 15, "reddit": 5, "x": 2})
     assert weights["whatsapp"] > weights["x"]
     assert weights["whatsapp"] >= 1.5
+
+
+def test_3step_sequence_generator():
+    deal = {
+        "title": "Pigeon 1.8L Electric Kettle",
+        "effective_price": 599.0,
+        "mrp": 1499.0,
+        "asin": "B09W2GFM7Y",
+        "rating": 4.4,
+        "review_count": 18200,
+        "category": "Home & Kitchen",
+    }
+    seq = generate_3step_sequence(deal)
+    assert "step1_morning" in seq
+    assert "step2_evening" in seq
+    assert "step3_followup" in seq
+
+    # Step 1 Morning
+    assert "☀️" in seq["step1_morning"]["title"]
+    assert "599" in seq["step1_morning"]["message"]
+    assert "-s1" in seq["step1_morning"]["subtag"]
+
+    # Step 2 Evening Impulse (<₹499 / flash)
+    assert "🌙" in seq["step2_evening"]["title"]
+    assert "-s2" in seq["step2_evening"]["subtag"]
+
+    # Step 3 Follow-up / Scarcity
+    assert "🚨" in seq["step3_followup"]["message"]
+    assert "-s3" in seq["step3_followup"]["subtag"]
+
+
+@pytest.mark.asyncio
+async def test_n8n_export_endpoint(async_client: AsyncClient):
+    # Test POST /api/deals/export-n8n
+    resp_post = await async_client.post("/api/deals/export-n8n?limit=10")
+    assert resp_post.status_code == 200
+    data_post = resp_post.json()
+    assert data_post["status"] == "success"
+    assert data_post["count"] > 0
+    first = data_post["deals"][0]
+    for field in ["asin", "title", "price", "mrp", "discount", "affiliate_url", "whatsapp_message", "telegram_message", "unique_tag"]:
+        assert field in first
+        assert first[field] is not None
+    assert "dammaiprasad-21" in first["affiliate_url"]
+
+    # Test GET /api/deals/export-n8n
+    resp_get = await async_client.get("/api/deals/export-n8n?limit=5")
+    assert resp_get.status_code == 200
+    assert resp_get.json()["count"] > 0
+
+
+@pytest.mark.asyncio
+async def test_daily_performance_summary(async_client: AsyncClient):
+    resp = await async_client.get("/api/revenue/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "daily_performance" in data
+    dp = data["daily_performance"]
+
+    # 1. Top 3 deals
+    assert "top_3_deals" in dp
+    assert len(dp["top_3_deals"]) == 3
+
+    # 2. Best performing channel
+    assert "best_performing_channel" in dp
+    assert "whatsapp" in dp["best_performing_channel"]["channel"].lower()
+
+    # 3. Pace vs target
+    assert "pace_vs_target" in dp
+    assert dp["pace_vs_target"]["daily_target_runrate"] > 0
+
+    # 4. Remaining posts needed today
+    assert "remaining_posts_needed_today" in dp
+    assert dp["remaining_posts_needed_today"]["daily_quota"] == 80
+
+
+def test_strict_promote_gate_criteria():
+    # Deal missing review threshold (<500) -> CANNOT BE PROMOTE
+    deal_low_reviews = {
+        "title": "New Brand Blender",
+        "category": "Home & Kitchen",
+        "effective_price": 799.0,
+        "discount_pct": 50,
+        "rating": 4.5,
+        "review_count": 120,  # Below 500
+    }
+    res_low = evaluate_deal_quality(deal_low_reviews)
+    assert res_low["verdict"] != "PROMOTE"
+    assert res_low["verdict"] == "HOLD"
+
+    # Deal missing discount (<35%) -> CANNOT BE PROMOTE
+    deal_low_disc = {
+        "title": "Premium Cooker",
+        "category": "Home & Kitchen",
+        "effective_price": 1299.0,
+        "discount_pct": 20,  # Below 35%
+        "rating": 4.5,
+        "review_count": 4500,
+    }
+    res_disc = evaluate_deal_quality(deal_low_disc)
+    assert res_disc["verdict"] != "PROMOTE"
+
+    # Deal passing all 5 criteria -> STRICTLY PROMOTE
+    deal_perfect = {
+        "title": "Pigeon Kettle",
+        "category": "Home & Kitchen",
+        "effective_price": 599.0,
+        "discount_pct": 60,
+        "rating": 4.4,
+        "review_count": 18200,
+    }
+    res_perf = evaluate_deal_quality(deal_perfect)
+    assert res_perf["verdict"] == "PROMOTE"
+    assert "Strict Sales Standard passed" in res_perf["reason"]

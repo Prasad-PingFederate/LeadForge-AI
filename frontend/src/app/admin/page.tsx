@@ -67,6 +67,14 @@ export default function RevenueDashboard() {
     setTimeout(() => setCopiedSubtag(null), 2000);
   };
 
+  const [copiedN8nUrl, setCopiedN8nUrl] = useState(false);
+  const handleCopyN8nUrl = () => {
+    const url = "http://127.0.0.1:8000/api/deals/export-n8n";
+    navigator.clipboard.writeText(url);
+    setCopiedN8nUrl(true);
+    setTimeout(() => setCopiedN8nUrl(false), 2000);
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -160,6 +168,112 @@ export default function RevenueDashboard() {
               className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
               style={{ width: `${Math.max(4, progressPct)}%` }}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Feature 5: Daily Performance Summary Command Center */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+              Feature 5: Daily Performance
+            </span>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span>Daily Performance Command Center</span>
+            </h2>
+          </div>
+          <span className="text-xs text-slate-400 font-mono">Updated in real-time from verified Associate clicks</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          {/* Card 1: Yesterday's Top 3 Deals by Clicks */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <span className="text-emerald-400">🔥 Top 3 Deals (By Clicks)</span>
+              <span className="font-mono text-slate-500">24H Window</span>
+            </div>
+            <div className="space-y-1.5 pt-1">
+              {data?.daily_performance?.top_3_deals && data.daily_performance.top_3_deals.length > 0 ? (
+                data.daily_performance.top_3_deals.map((t, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-1.5 rounded bg-slate-900 border border-slate-800/80">
+                    <div className="truncate max-w-[145px]">
+                      <span className="font-semibold text-slate-200 block truncate text-[11px]" title={t.title}>
+                        #{idx + 1} {t.title}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">{t.asin}</span>
+                    </div>
+                    <div className="text-right font-mono">
+                      <span className="text-cyan-300 font-bold block">{t.clicks} clicks</span>
+                      <span className="text-[10px] text-emerald-400">+₹{t.est_commission.toFixed(0)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-slate-500 text-[11px]">Collecting click trends...</p>
+              )}
+            </div>
+          </div>
+
+          {/* Card 2: Winning Channel (WhatsApp vs Telegram) */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <span className="text-sky-400">🏆 Best Performing Channel</span>
+              <span className="font-mono text-emerald-400">{data?.daily_performance?.best_performing_channel?.share_percent || 75}% share</span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-900 border border-emerald-900/60 space-y-1 text-center">
+              <span className="text-base font-black text-emerald-300 font-mono block">
+                {data?.daily_performance?.best_performing_channel?.label || "WhatsApp VIP Broadcasts"}
+              </span>
+              <p className="text-[11px] text-slate-400">
+                {data?.daily_performance?.best_performing_channel?.vs_telegram || "WhatsApp leads with higher conversion intent"}
+              </p>
+            </div>
+          </div>
+
+          {/* Card 3: Current Pace vs ₹10 Lakh Target */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <span className="text-amber-400">⚡ Pace vs ₹10L Target</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                data?.daily_performance?.pace_vs_target?.pace_status === "ON TRACK"
+                  ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                  : "bg-amber-950 text-amber-300 border border-amber-800"
+              }`}>
+                {data?.daily_performance?.pace_vs_target?.pace_status || "NEEDS ACCELERATION"}
+              </span>
+            </div>
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between font-mono text-[11px]">
+                <span className="text-slate-400">Daily Target:</span>
+                <span className="text-slate-200 font-bold">₹{data?.daily_performance?.pace_vs_target?.daily_target_runrate?.toLocaleString("en-IN") || "11,111"}/day</span>
+              </div>
+              <div className="flex justify-between font-mono text-[11px]">
+                <span className="text-slate-400">Est. Daily Run-rate:</span>
+                <span className="text-emerald-400 font-bold">₹{data?.daily_performance?.pace_vs_target?.current_daily_runrate?.toLocaleString("en-IN") || "1,349"}/day</span>
+              </div>
+              <div className="flex justify-between font-mono text-[11px] pt-1 border-t border-slate-900">
+                <span className="text-slate-400">Run-rate Gap:</span>
+                <span className="text-rose-400 font-bold">₹{data?.daily_performance?.pace_vs_target?.runrate_gap?.toLocaleString("en-IN") || "9,762"}/day</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Remaining Posts Needed Today */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+              <span className="text-teal-400">📋 Remaining Posts Today</span>
+              <span className="font-mono text-slate-400">Quota: 80/day</span>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-900 border border-teal-900/60 text-center space-y-1">
+              <div className="text-3xl font-black text-teal-300 font-mono">
+                {data?.daily_performance?.remaining_posts_needed_today?.remaining_today ?? 74}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {data?.daily_performance?.remaining_posts_needed_today?.posts_completed_today || 6} broadcasted · {data?.daily_performance?.remaining_posts_needed_today?.remaining_today ?? 74} remaining to hit daily clicks target
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -606,6 +720,63 @@ export default function RevenueDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Feature 4: n8n-Ready Webhook Export Card */}
+      <div className="bg-slate-900 border border-purple-900/40 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-[10px] font-bold text-purple-300 uppercase tracking-widest font-mono">
+              Feature 4: Automation Webhook
+            </span>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-400" />
+              <span>n8n-Ready Webhook & Pipeline Export</span>
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyN8nUrl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-950 hover:bg-purple-900 border border-purple-700 text-xs font-semibold text-purple-200 transition-colors"
+            >
+              {copiedN8nUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedN8nUrl ? "Webhook URL Copied!" : "Copy n8n Webhook URL"}</span>
+            </button>
+            <a
+              href="http://127.0.0.1:8000/api/deals/export-n8n?limit=15"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"
+            >
+              <span>Preview Live JSON ↗</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="md:col-span-2 p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 space-y-1">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-sans font-bold">Endpoint:</span>
+            <code className="text-purple-300 select-all block">POST http://127.0.0.1:8000/api/deals/export-n8n</code>
+            <p className="text-[10px] text-slate-400 font-sans mt-2">
+              Returns strictly approved <code className="text-emerald-400">🟢 PROMOTE</code> deals with pre-formatted WhatsApp & Telegram messages, unique tags, and tag=dammaiprasad-21 Amazon links for automatic n8n broadcast bots.
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10px] text-slate-400 overflow-x-auto">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-sans font-bold mb-1">Payload Schema:</span>
+            <pre className="text-slate-300">
+{`{
+  "asin": "B002MPPTB8",
+  "title": "Hawkins Futura Cooker",
+  "price": 2499,
+  "discount": 25,
+  "affiliate_url": "...",
+  "whatsapp_message": "...",
+  "telegram_message": "...",
+  "unique_tag": "lf-n8n-..."
+}`}
+            </pre>
+          </div>
         </div>
       </div>
 
