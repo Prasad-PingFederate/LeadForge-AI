@@ -272,18 +272,24 @@ def compute_loot_score(
     deal: Dict[str, Any],
     historical_clicks: Optional[int] = None,
     is_previously_dispatched: bool = False,
+    historical_orders: Optional[int] = None,
+    conversion_rate: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
-    BuyHatke & Keepa-style Loot Score Engine (0-100) with Historical Feedback Loop (Phase 3):
+    BuyHatke & Keepa-style Loot Score Engine (0-100) with Order-Based Learning (Phase 3+):
     Calculates instant impulse appeal, price drop depth, and revenue yield for Indian deal shoppers.
     Scoring:
       - Discount Depth (up to 35 pts): >=60% -> 35, >=50% -> 30, >=40% -> 20, >=30% -> 10
       - Impulse Sweet-Spot (up to 30 pts): ₹199-₹999 -> 30, ₹1000-₹2499 -> 20, ₹2500-₹4999 -> 10
       - Social Proof Trust (up to 25 pts): >=4.4 & >=5000 rev -> 25, >=4.2 & >=500 rev -> 20, >=4.0 -> 10
       - Category Yield (up to 10 pts): >=8% -> 10, >=5% -> 6, 0% -> 0
-      - Historical Feedback Adjustment:
-          >=25 clicks -> +15 pts (Viral Leader)
-          >=10 clicks -> +8 pts (Consistent Performer)
+      - Order-Based & Click Feedback Adjustment:
+          >=5 confirmed orders -> +25 pts (Proven High Converter)
+          >=1 confirmed order -> +15 pts (Proven Converter)
+          >=50 clicks with 0 orders -> -20 pts (Zero Conversion Alert Penalty)
+          >=25 clicks with 0 orders -> -10 pts (High Clicks Low Conversion)
+          >=25 clicks (no order data) -> +15 pts (Viral Leader)
+          >=10 clicks (no order data) -> +8 pts (Consistent Performer)
           <2 clicks (if previously posted) -> -10 pts (Low Velocity Penalty)
     """
     price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
@@ -343,10 +349,28 @@ def compute_loot_score(
     if is_zero or (rating < 4.0 and reviews > 50):
         base_score = min(base_score, 30)
 
-    # Phase 3: Historical Click Feedback Adjustment
+    # Order-Based & Historical Feedback Adjustment
     feedback_adjustment = 0
     feedback_reason = None
-    if historical_clicks is not None:
+
+    # Priority 1: Confirmed Amazon Orders (Highest validation)
+    if historical_orders is not None and historical_orders > 0:
+        cvr_text = f" ({conversion_rate:.1f}% CVR)" if conversion_rate is not None else ""
+        if historical_orders >= 5:
+            feedback_adjustment = 25
+            feedback_reason = f"🏆 Proven High Converter (+25 pts): {historical_orders} confirmed Amazon sales{cvr_text}"
+        else:
+            feedback_adjustment = 15
+            feedback_reason = f"🛒 Proven Converter (+15 pts): {historical_orders} confirmed Amazon sales{cvr_text}"
+    # Priority 2: Zero Conversion Alert Penalty (clicks without orders)
+    elif historical_orders is not None and historical_orders == 0 and (historical_clicks or 0) >= 50:
+        feedback_adjustment = -20
+        feedback_reason = f"🚨 Zero Conversion Alert (-20 pts): {historical_clicks} clicks with 0 orders (Drop-off Friction)"
+    elif historical_orders is not None and historical_orders == 0 and (historical_clicks or 0) >= 25:
+        feedback_adjustment = -10
+        feedback_reason = f"⚠️ Low Conversion Penalty (-10 pts): {historical_clicks} clicks with 0 orders"
+    # Priority 3: Click-Only Velocity
+    elif historical_clicks is not None:
         if historical_clicks >= 25:
             feedback_adjustment = 15
             feedback_reason = f"⚡ High-Velocity Leader (+15 pts): {historical_clicks} verified clicks in attribution feed"
@@ -400,6 +424,57 @@ def compute_loot_score(
             "feedback_adjustment_pts": feedback_adjustment,
         },
         "reasons": reasons,
+    }
+
+
+def parse_subtag_metadata(subtag: str) -> Dict[str, str]:
+    """
+    Parses channel, audience, asin, and date from any LeadForge subtag.
+    Supports formats:
+      - lf-wa-homemaker-20261122-b002mpptb8
+      - lf-wa-hostel-b002mpptb8
+      - lf-wa-20261122-b002mpptb8-hm
+      - lf-tg-20261122-b08v5q4x1c-bi
+    """
+    sub_lower = (subtag or "").lower().strip()
+    channel = "telegram" if ("-tg-" in sub_lower or sub_lower.startswith("lf-tg")) else "whatsapp"
+
+    if "homemaker" in sub_lower or "-hm" in sub_lower:
+        audience = "homemaker"
+        audience_label = "Homemaker & Family"
+    elif "hostel" in sub_lower or "-hc" in sub_lower:
+        audience = "hostel_college"
+        audience_label = "Hostel & College"
+    elif "office" in sub_lower or "-op" in sub_lower:
+        audience = "office_pro"
+        audience_label = "Office & Professional"
+    elif "budget" in sub_lower or "-bi" in sub_lower:
+        audience = "budget_impulse"
+        audience_label = "Budget & Impulse"
+    else:
+        audience = "unspecified"
+        audience_label = "General Audience"
+
+    asin = ""
+    detected = extract_asin(sub_lower)
+    if detected:
+        asin = detected.upper()
+    else:
+        b_match = re.search(r"(?:^|-)(B[0-9a-z]{9})(?:-|$)", sub_lower, re.I)
+        if b_match:
+            asin = b_match.group(1).upper()
+        else:
+            for part in sub_lower.split("-"):
+                if len(part) == 10 and not part.isdigit() and re.fullmatch(r"[a-z0-9]{10}", part):
+                    asin = part.upper()
+                    break
+
+    return {
+        "channel": channel,
+        "audience": audience,
+        "audience_label": audience_label,
+        "asin": asin.upper(),
+        "subtag": subtag,
     }
 
 
@@ -575,6 +650,8 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
         deal,
         historical_clicks=deal.get("historical_clicks"),
         is_previously_dispatched=bool(deal.get("is_previously_dispatched", False)),
+        historical_orders=deal.get("historical_orders"),
+        conversion_rate=deal.get("conversion_rate"),
     )
 
     return {

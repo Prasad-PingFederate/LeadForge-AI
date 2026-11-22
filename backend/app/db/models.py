@@ -225,3 +225,32 @@ class DispatchLog(Base):
         Index("ix_dispatch_slot_asin", "slot_id", "asin"),
         Index("ix_dispatch_subtag", "subtag"),
     )
+
+
+class AmazonOrder(Base):
+    """
+    Phase 1 Feature: Order-Based Learning
+    Records confirmed Amazon India associate orders per subtag/ASIN for real conversion attribution.
+    """
+    __tablename__ = "amazon_orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    subtag: Mapped[str] = mapped_column(String(100), nullable=False)
+    asin: Mapped[str] = mapped_column(String(20), nullable=False)
+    order_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    items_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    revenue_inr: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    commission_inr: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    channel: Mapped[str] = mapped_column(String(50), default="whatsapp", nullable=False)
+    audience: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    source: Mapped[str] = mapped_column(String(50), default="manual", nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ordered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (
+        Index("ix_amazon_orders_subtag", "subtag"),
+        Index("ix_amazon_orders_asin", "asin"),
+        Index("ix_amazon_orders_channel", "channel"),
+        Index("ix_amazon_orders_ordered_at", "ordered_at"),
+    )

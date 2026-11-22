@@ -274,3 +274,65 @@ export async function dispatchWhatsApp(payload: {
   }
   return res.json();
 }
+
+export async function logAmazonOrder(payload: {
+  subtag: string;
+  asin?: string;
+  order_id?: string;
+  items_count?: number;
+  revenue_inr?: number;
+  commission_inr?: number;
+  channel?: string;
+  audience?: string;
+  notes?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/orders/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to log Amazon order");
+  }
+  return res.json();
+}
+
+export async function uploadOrdersCsv(csvText: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/orders/upload-csv`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csv_text: csvText }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to upload orders CSV");
+  }
+  return res.json();
+}
+
+export async function fetchAmazonOrders(limit: number = 50): Promise<{
+  status: string;
+  total_confirmed_orders: number;
+  total_confirmed_commission_inr: number;
+  orders: any[];
+}> {
+  const res = await fetch(`${API_BASE}/deals/orders?limit=${limit}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch Amazon orders");
+  }
+  return res.json();
+}
+
+export async function fetchZeroConversionAlerts(thresholdClicks: number = 50): Promise<{
+  status: string;
+  alerts_count: number;
+  threshold_clicks: number;
+  alerts: any[];
+}> {
+  const res = await fetch(`${API_BASE}/deals/zero-conversion-alerts?threshold_clicks=${thresholdClicks}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch zero conversion alerts");
+  }
+  return res.json();
+}

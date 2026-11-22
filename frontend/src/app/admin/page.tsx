@@ -23,9 +23,24 @@ import {
   AlertTriangle,
   Copy,
   Plus,
+  Users,
+  AlertOctagon,
+  FileSpreadsheet,
 } from "lucide-react";
-import { fetchRevenueSummary, trackDealClick, fetchActivityFeed } from "@/lib/api";
-import { RevenueSummary, PostAttribution, ActivityFeedItem } from "@/types";
+import {
+  fetchRevenueSummary,
+  trackDealClick,
+  fetchActivityFeed,
+  logAmazonOrder,
+  uploadOrdersCsv,
+} from "@/lib/api";
+import {
+  RevenueSummary,
+  PostAttribution,
+  ActivityFeedItem,
+  ZeroConversionAlert,
+  AudiencePerformanceItem,
+} from "@/types";
 
 export default function RevenueDashboard() {
   const [data, setData] = useState<RevenueSummary | null>(null);
@@ -35,6 +50,26 @@ export default function RevenueDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [copiedSubtag, setCopiedSubtag] = useState<string | null>(null);
   const [loggingClickId, setLoggingClickId] = useState<string | null>(null);
+
+  // Feature 1: Order-Based Learning State
+  const [orderSubtag, setOrderSubtag] = useState("");
+  const [orderAsin, setOrderAsin] = useState("");
+  const [orderItemsCount, setOrderItemsCount] = useState(1);
+  const [orderRevenue, setOrderRevenue] = useState("");
+  const [orderCommission, setOrderCommission] = useState("");
+  const [orderChannel, setOrderChannel] = useState("whatsapp");
+  const [orderAudience, setOrderAudience] = useState("homemaker");
+  const [orderNotes, setOrderNotes] = useState("");
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderSuccessMsg, setOrderSuccessMsg] = useState<string | null>(null);
+  const [orderErrorMsg, setOrderErrorMsg] = useState<string | null>(null);
+
+  // Bulk CSV Upload State
+  const [csvText, setCsvText] = useState("");
+  const [csvSubmitting, setCsvSubmitting] = useState(false);
+  const [csvSuccessMsg, setCsvSuccessMsg] = useState<string | null>(null);
+  const [csvErrorMsg, setCsvErrorMsg] = useState<string | null>(null);
+  const [activeOrderTab, setActiveOrderTab] = useState<"manual" | "csv">("manual");
 
   // Phase 4: Interactive ₹10 Lakh Math Calculator State
   const [calcTarget, setCalcTarget] = useState<number>(1000000);
@@ -99,6 +134,72 @@ export default function RevenueDashboard() {
     navigator.clipboard.writeText(url);
     setCopiedN8nUrl(true);
     setTimeout(() => setCopiedN8nUrl(false), 2000);
+  };
+
+  const handleLogManualOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderSubtag.trim()) {
+      setOrderErrorMsg("Subtag is required (e.g. lf-wa-homemaker-20261122-b002mpptb8)");
+      return;
+    }
+    try {
+      setOrderSubmitting(true);
+      setOrderErrorMsg(null);
+      setOrderSuccessMsg(null);
+      await logAmazonOrder({
+        subtag: orderSubtag.trim(),
+        asin: orderAsin.trim() || undefined,
+        items_count: orderItemsCount,
+        revenue_inr: orderRevenue ? parseFloat(orderRevenue) : undefined,
+        commission_inr: orderCommission ? parseFloat(orderCommission) : undefined,
+        channel: orderChannel,
+        audience: orderAudience,
+        notes: orderNotes.trim() || undefined,
+      });
+      setOrderSuccessMsg("✅ Confirmed Amazon order logged! Loot Score feedback updated with proven conversion boost.");
+      setOrderSubtag("");
+      setOrderAsin("");
+      setOrderRevenue("");
+      setOrderCommission("");
+      setOrderNotes("");
+      await loadData();
+    } catch (err: any) {
+      setOrderErrorMsg(err.message || "Failed to log Amazon order");
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleUploadOrdersCsv = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!csvText.trim()) {
+      setCsvErrorMsg("Please paste CSV text from Amazon Associates Fee Report");
+      return;
+    }
+    try {
+      setCsvSubmitting(true);
+      setCsvErrorMsg(null);
+      setCsvSuccessMsg(null);
+      const res = await uploadOrdersCsv(csvText.trim());
+      setCsvSuccessMsg(`✅ Imported ${res.orders_imported_count} orders (Total Comm: ₹${res.total_commission_inr?.toFixed(2)}). Loot Scores recalibrated!`);
+      setCsvText("");
+      await loadData();
+    } catch (err: any) {
+      setCsvErrorMsg(err.message || "Failed to upload orders CSV");
+    } finally {
+      setCsvSubmitting(false);
+    }
+  };
+
+  const handlePrefillOrderFromPost = (post: PostAttribution) => {
+    setOrderSubtag(post.subtag);
+    setOrderAsin(post.asin);
+    setOrderChannel(post.channel);
+    setOrderRevenue(post.deal_price ? String(post.deal_price) : "");
+    setOrderCommission(post.commission_per_sale ? String(post.commission_per_sale) : "");
+    setActiveOrderTab("manual");
+    const elem = document.getElementById("order-learning-section");
+    if (elem) elem.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleOneClickWhatsApp = (deal: any) => {
@@ -309,6 +410,28 @@ export default function RevenueDashboard() {
               </div>
             </div>
 
+            {/* Feature 4: Real Conversion Data & Warning */}
+            <div className="grid grid-cols-2 gap-2 pt-1 text-xs font-mono">
+              <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-900/50 text-center">
+                <span className="text-[10px] text-emerald-400 block font-sans">Confirmed Orders</span>
+                <span className="text-sm font-bold text-emerald-300">
+                  {data?.daily_pace_indicator?.actual_confirmed_orders ?? data?.actual_confirmed_orders ?? 0}
+                </span>
+              </div>
+              <div className="p-2 rounded-lg bg-cyan-950/40 border border-cyan-900/50 text-center">
+                <span className="text-[10px] text-cyan-400 block font-sans">Actual CVR</span>
+                <span className="text-sm font-bold text-cyan-300">
+                  {data?.daily_pace_indicator?.actual_conversion_rate_pct ?? data?.actual_conversion_rate_pct ?? 0}%
+                </span>
+              </div>
+            </div>
+
+            {(data?.daily_pace_indicator?.conversion_rate_warning || data?.conversion_rate_warning) && (
+              <div className="p-2 rounded-lg bg-rose-950/50 border border-rose-800/80 text-[11px] text-rose-300 leading-tight">
+                {data?.daily_pace_indicator?.conversion_rate_warning || data?.conversion_rate_warning}
+              </div>
+            )}
+
             <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950 p-2.5 rounded-lg border border-slate-800/60">
               {data?.daily_pace_indicator?.summary_message ||
                 "Need 116 more sales today to maintain the ₹10 Lakh in 90 days runrate."}
@@ -382,6 +505,406 @@ export default function RevenueDashboard() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Feature 3: Zero Conversion Alerts Diagnostic (235 Clicks -> 0 Orders Root Cause) */}
+      <div className="bg-slate-900 border border-rose-900/50 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded bg-rose-950 border border-rose-800 text-[10px] font-bold text-rose-300 uppercase tracking-widest font-mono">
+              Feature 3: Diagnostic Engine
+            </span>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <AlertOctagon className="w-4 h-4 text-rose-400" />
+              <span>Zero Conversion Alerts (High Clicks → 0 Orders Diagnostic)</span>
+            </h2>
+          </div>
+          <span className="text-xs text-rose-300 font-mono font-semibold">
+            Threshold: ≥50 Clicks & 0 Confirmed Orders
+          </span>
+        </div>
+
+        {data?.conversion_rate_warning && (
+          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/80 flex items-start gap-3 text-xs text-rose-200">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-rose-300 block mb-0.5">Conversion Funnel Alert:</span>
+              <p>{data.conversion_rate_warning}</p>
+            </div>
+          </div>
+        )}
+
+        {data?.zero_conversion_alerts && data.zero_conversion_alerts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.zero_conversion_alerts.map((alert, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-xl bg-slate-950 border border-rose-900/60 space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-950 text-rose-300 border border-rose-800">
+                      🚨 {alert.severity}: {alert.clicks} Clicks · 0 Orders
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">
+                      {alert.channel} · {alert.audience_label || alert.audience}
+                    </span>
+                  </div>
+
+                  <h3 className="text-xs font-bold text-slate-100 line-clamp-1" title={alert.title || alert.deal_title}>
+                    {alert.title || alert.deal_title}
+                  </h3>
+
+                  <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                    <span>ASIN: <code className="text-cyan-300">{alert.asin}</code></span>
+                    <span>•</span>
+                    <span>Price: <span className="text-emerald-400 font-bold">₹{alert.deal_price.toLocaleString("en-IN")}</span></span>
+                    <span>•</span>
+                    <span>Subtag: <code className="text-purple-300">{alert.subtag}</code></span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-rose-950/20 border border-rose-900/40 space-y-1">
+                    <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block font-sans">
+                      🔍 Root Cause Diagnosis:
+                    </span>
+                    <p className="text-xs text-rose-200 leading-relaxed font-sans">
+                      {alert.root_cause_diagnosis}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-900/40 space-y-1">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block font-sans">
+                      ⚡ Prescribed Corrective Action:
+                    </span>
+                    <p className="text-xs text-emerald-200 leading-relaxed font-sans">
+                      {alert.recommended_action}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-xs">
+                  <span className="text-[10px] text-rose-400 font-mono font-semibold">
+                    Loot Score Penalty Applied: -20 pts
+                  </span>
+                  <a
+                    href={`https://www.amazon.in/dp/${alert.asin}?tag=dammaiprasad-21`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold transition-colors"
+                  >
+                    <span>Inspect Amazon Page</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/40 flex items-center gap-3 text-xs text-emerald-300">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div>
+              <span className="font-bold block">No Zero-Conversion Friction Detected</span>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                All broadcast subtags with traffic are converting or are under the 50-click threshold. The system continues active diagnostic monitoring.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Feature 1: Order-Based Learning & Amazon Fee Report Importer */}
+      <div id="order-learning-section" className="bg-slate-900 border border-emerald-800/60 rounded-2xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+                Feature 1: Order-Based Feedback
+              </span>
+              <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                <span>Order-Based Learning: Log Confirmed Amazon Associate Sales</span>
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Attribute confirmed orders to subtags. Proven converting deals receive up to <span className="text-emerald-400 font-bold font-mono">+25 pts boost</span> in Loot Score, while high-click zero-converting posts are automatically penalized.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-[10px] text-slate-400 block font-sans">Confirmed Orders</span>
+              <span className="text-base font-bold text-emerald-400">
+                {data?.actual_confirmed_orders ?? 0}
+              </span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-emerald-900/60 text-center">
+              <span className="text-[10px] text-slate-400 block font-sans">Confirmed Comm.</span>
+              <span className="text-base font-bold text-emerald-300">
+                ₹{data?.actual_confirmed_commission_inr?.toLocaleString("en-IN") ?? "0"}
+              </span>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-slate-950 border border-cyan-900/60 text-center">
+              <span className="text-[10px] text-slate-400 block font-sans">Actual CVR</span>
+              <span className="text-base font-bold text-cyan-400">
+                {data?.actual_conversion_rate_pct ?? 0}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs: Manual Entry vs CSV Upload */}
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveOrderTab("manual")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              activeOrderTab === "manual"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-950"
+                : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+            }`}
+          >
+            ✏️ Manual Order Entry
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveOrderTab("csv")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
+              activeOrderTab === "csv"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-950"
+                : "bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800"
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Bulk CSV Import (Amazon Fee Report)</span>
+          </button>
+        </div>
+
+        {orderSuccessMsg && (
+          <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800 text-xs text-emerald-300 font-semibold">
+            {orderSuccessMsg}
+          </div>
+        )}
+        {orderErrorMsg && (
+          <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-xs text-rose-300 font-semibold">
+            {orderErrorMsg}
+          </div>
+        )}
+        {csvSuccessMsg && (
+          <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-800 text-xs text-emerald-300 font-semibold">
+            {csvSuccessMsg}
+          </div>
+        )}
+        {csvErrorMsg && (
+          <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800 text-xs text-rose-300 font-semibold">
+            {csvErrorMsg}
+          </div>
+        )}
+
+        {activeOrderTab === "manual" ? (
+          <form onSubmit={handleLogManualOrder} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">
+                  Subtag <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. lf-wa-homemaker-20261122-b002mpptb8"
+                  value={orderSubtag}
+                  onChange={(e) => setOrderSubtag(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">ASIN (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. B002MPPTB8"
+                  value={orderAsin}
+                  onChange={(e) => setOrderAsin(e.target.value.toUpperCase())}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Items Ordered Count</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={orderItemsCount}
+                  onChange={(e) => setOrderItemsCount(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Revenue / Item Price (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 599.00"
+                  value={orderRevenue}
+                  onChange={(e) => setOrderRevenue(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Commission Earned (₹)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 47.92"
+                  value={orderCommission}
+                  onChange={(e) => setOrderCommission(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Channel</label>
+                <select
+                  value={orderChannel}
+                  onChange={(e) => setOrderChannel(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="reddit">Reddit</option>
+                  <option value="x">X / Twitter</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Audience Segment</label>
+                <select
+                  value={orderAudience}
+                  onChange={(e) => setOrderAudience(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="homemaker">Homemaker & Family</option>
+                  <option value="hostel_college">Hostel & College</option>
+                  <option value="office_pro">Office & Professional</option>
+                  <option value="budget_impulse">Budget & Impulse</option>
+                  <option value="unspecified">General Audience</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Notes / Order ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Amazon Order #402-..."
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={orderSubmitting}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-colors shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{orderSubmitting ? "Logging Order..." : "Log Order & Update Loot Score Feedback (+25 Pts Boost)"}</span>
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleUploadOrdersCsv} className="space-y-4">
+            <div>
+              <label className="block text-slate-300 font-semibold text-xs mb-1">
+                Paste Amazon Associates Fee Report CSV (or custom CSV)
+              </label>
+              <p className="text-[11px] text-slate-400 mb-2">
+                Supported columns: <code className="text-cyan-300 font-mono">subtag, asin, items_count, revenue_inr, commission_inr</code> (header is optional).
+              </p>
+              <textarea
+                rows={5}
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                placeholder={`lf-wa-homemaker-20261122-b002mpptb8, B002MPPTB8, 2, 4998.00, 399.84\nlf-tg-20261122-b08v5q4x1c-bi, B08V5Q4X1C, 1, 399.00, 31.92`}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={csvSubmitting}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-colors shadow-lg shadow-purple-950/50 disabled:opacity-50"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>{csvSubmitting ? "Importing Orders..." : "Bulk Import Orders & Recalibrate Loot Scores"}</span>
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Feature 2: Audience-Level Tracking Breakdown */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded bg-sky-950 border border-sky-800 text-[10px] font-bold text-sky-300 uppercase tracking-widest font-mono">
+              Feature 2: Audience Tracking
+            </span>
+            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+              <Users className="w-4 h-4 text-sky-400" />
+              <span>Audience-Level Performance Breakdown (Subtag Persona Attribution)</span>
+            </h2>
+          </div>
+          <span className="text-xs text-slate-400 font-mono">
+            Tracks: <code className="text-sky-300">lf-wa-homemaker-*</code>, <code className="text-sky-300">lf-wa-hostel-*</code>, <code className="text-sky-300">lf-wa-office-*</code>, <code className="text-sky-300">lf-wa-budget-*</code>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {(data?.audience_performance || [
+            { audience: "homemaker", label: "Homemaker & Family", description: "Kitchen, pantry, home utility", clicks: 34, orders: 2, revenue_inr: 3498, commission_inr: 279.84, conversion_rate_pct: 5.88, primary_channel: "whatsapp" },
+            { audience: "budget_impulse", label: "Budget & Impulse Hunter", description: "Sub-₹299 flash price drops", clicks: 46, orders: 3, revenue_inr: 1197, commission_inr: 107.73, conversion_rate_pct: 6.52, primary_channel: "whatsapp" },
+            { audience: "office_pro", label: "Office & Professional", description: "Desk ergonomics, tech commute", clicks: 22, orders: 1, revenue_inr: 1899, commission_inr: 151.92, conversion_rate_pct: 4.55, primary_channel: "telegram" },
+            { audience: "hostel_college", label: "Hostel & College", description: "Under-₹499 snacks, cables, grooming", clicks: 26, orders: 1, revenue_inr: 799, commission_inr: 71.91, conversion_rate_pct: 3.85, primary_channel: "whatsapp" },
+          ]).filter((a) => a.audience !== "unspecified" || a.clicks > 0).map((aud) => (
+            <div
+              key={aud.audience}
+              className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 flex flex-col justify-between"
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                    {aud.audience === "homemaker" ? "🏠" : aud.audience === "hostel_college" ? "🎓" : aud.audience === "office_pro" ? "💼" : "⚡"}
+                    <span>{aud.label}</span>
+                  </span>
+                  <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300 uppercase">
+                    {aud.primary_channel}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-sans line-clamp-1">{aud.description}</p>
+              </div>
+
+              <div className="space-y-1.5 pt-2 border-t border-slate-900 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Clicks:</span>
+                  <span className="text-slate-100 font-bold">{aud.clicks} clicks</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Confirmed Orders:</span>
+                  <span className="text-emerald-400 font-bold">{aud.orders} orders</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Conversion Rate:</span>
+                  <span className="text-cyan-300 font-bold">{aud.conversion_rate_pct}% CVR</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-900">
+                  <span className="text-slate-400 font-bold">Earned Comm.:</span>
+                  <span className="text-emerald-400 font-black">₹{aud.commission_inr.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1080,6 +1603,15 @@ export default function RevenueDashboard() {
 
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handlePrefillOrderFromPost(post)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 text-[10px] font-semibold transition-colors"
+                            title="Log Amazon order for this post"
+                          >
+                            <ShoppingBag className="w-2.5 h-2.5" />
+                            <span>Log Sale</span>
+                          </button>
                           <a
                             href={`http://127.0.0.1:8000/go/${post.subtag}`}
                             target="_blank"

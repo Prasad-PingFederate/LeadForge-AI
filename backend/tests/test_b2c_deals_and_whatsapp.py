@@ -14,6 +14,8 @@ from app.core.deal_analyzer import (
     generate_where_to_post_recommendations,
     get_channel_performance_weights,
     generate_3step_sequence,
+    compute_loot_score,
+    parse_subtag_metadata,
 )
 from app.core.cache import TTLCache
 from app.agents.profiler_agent import profiler_agent
@@ -571,18 +573,13 @@ async def test_instantly_3step_sequence_delays_and_conditions():
 
 
 @pytest.mark.asyncio
-async def test_revenue_clicks_by_step_summary():
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/revenue/summary")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "clicks_by_step" in data
-        assert "step1_morning" in data["clicks_by_step"]
-        assert "step2_evening" in data["clicks_by_step"]
+async def test_revenue_clicks_by_step_summary(async_client):
+    resp = await async_client.get("/api/revenue/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "clicks_by_step" in data
+    assert "step1_morning" in data["clicks_by_step"]
+    assert "step2_evening" in data["clicks_by_step"]
 
 
 @pytest.mark.asyncio
@@ -647,58 +644,48 @@ async def test_lemlist_multi_angle_copy_generation():
 
 
 @pytest.mark.asyncio
-async def test_deals_angles_and_dispatch_endpoints():
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
+async def test_deals_angles_and_dispatch_endpoints(async_client):
+    # 1. Angles endpoint
+    resp_angles = await async_client.get("/api/deals/B002MPPTB8/angles?channel=whatsapp")
+    assert resp_angles.status_code == 200
+    data_a = resp_angles.json()
+    assert data_a["status"] == "success"
+    assert "angles" in data_a
+    assert "urgency_loot" in data_a["angles"]
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. Angles endpoint
-        resp_angles = await client.get("/api/deals/B002MPPTB8/angles?channel=whatsapp")
-        assert resp_angles.status_code == 200
-        data_a = resp_angles.json()
-        assert data_a["status"] == "success"
-        assert "angles" in data_a
-        assert "urgency_loot" in data_a["angles"]
+    # 2. Dispatch simulated Telegram alert
+    resp_disp = await async_client.post("/api/deals/dispatch-telegram", json={
+        "asin": "B002MPPTB8",
+        "step_number": 1,
+        "channel_id": "@dealsforindia"
+    })
+    assert resp_disp.status_code == 200
+    data_d = resp_disp.json()
+    assert data_d["status"] == "dispatched_simulated"
+    assert "n8n_curl_example" in data_d
 
-        # 2. Dispatch simulated Telegram alert
-        resp_disp = await client.post("/api/deals/dispatch-telegram", json={
-            "asin": "B002MPPTB8",
-            "step_number": 1,
-            "channel_id": "@dealsforindia"
-        })
-        assert resp_disp.status_code == 200
-        data_d = resp_disp.json()
-        assert data_d["status"] == "dispatched_simulated"
-        assert "n8n_curl_example" in data_d
-
-        # 3. Daily deals outbox
-        resp_outbox = await client.get("/api/deals/outbox/daily")
-        assert resp_outbox.status_code == 200
-        data_o = resp_outbox.json()
-        assert "cadence" in data_o
-        assert "morning_hero" in data_o["cadence"]
-        assert "evening_impulse" in data_o["cadence"]
-        assert "scarcity_closer" in data_o["cadence"]
+    # 3. Daily deals outbox
+    resp_outbox = await async_client.get("/api/deals/outbox/daily")
+    assert resp_outbox.status_code == 200
+    data_o = resp_outbox.json()
+    assert "cadence" in data_o
+    assert "morning_hero" in data_o["cadence"]
+    assert "evening_impulse" in data_o["cadence"]
+    assert "scarcity_closer" in data_o["cadence"]
 
 
 @pytest.mark.asyncio
-async def test_device_and_app_telemetry_summary():
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/revenue/summary")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "clicks_by_device" in data
-        assert "mobile_android" in data["clicks_by_device"]
-        assert "clicks_by_app" in data
-        assert "whatsapp" in data["clicks_by_app"]
-        assert "goal_progress" in data
-        assert data["goal_progress"]["target_commission_inr"] == 1000000.0
-        assert "step3_scarcity" in data["clicks_by_step"]
+async def test_device_and_app_telemetry_summary(async_client):
+    resp = await async_client.get("/api/revenue/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "clicks_by_device" in data
+    assert "mobile_android" in data["clicks_by_device"]
+    assert "clicks_by_app" in data
+    assert "whatsapp" in data["clicks_by_app"]
+    assert "goal_progress" in data
+    assert data["goal_progress"]["target_commission_inr"] == 1000000.0
+    assert "step3_scarcity" in data["clicks_by_step"]
 
 
 @pytest.mark.asyncio
@@ -937,5 +924,135 @@ async def test_revenue_channel_performance_and_next_post_suggestion(async_client
     assert "step_morning_hero" in task_ids
     assert "step_evening_impulse" in task_ids
     assert "step_night_scarcity" in task_ids
+
+
+@pytest.mark.asyncio
+async def test_order_based_learning_api_and_csv_import(async_client):
+    # 1. Manual order logging
+    order_payload = {
+        "subtag": "lf-wa-homemaker-20261122-b002mpptb8",
+        "asin": "B002MPPTB8",
+        "order_id": "402-9988771-1234567",
+        "items_count": 2,
+        "revenue_inr": 4998.0,
+        "commission_inr": 399.84,
+        "channel": "whatsapp",
+        "audience": "homemaker",
+        "notes": "Verified Prime Order from WhatsApp Homemaker VIP",
+    }
+    resp = await async_client.post("/api/deals/orders/log", json=order_payload)
+    assert resp.status_code == 200
+    res_data = resp.json()
+    assert res_data["success"] is True
+    assert res_data["order"]["asin"] == "B002MPPTB8"
+    assert res_data["order"]["items_count"] == 2
+    assert res_data["order"]["commission_inr"] == 399.84
+
+    # 2. Bulk CSV upload
+    csv_text = """subtag,asin,items_count,revenue_inr,commission_inr
+lf-wa-hostel-20261122-b08v5q4x1c,B08V5Q4X1C,3,1197.0,95.76
+lf-tg-20261122-b091cr2fxy-bi,B091CR2FXY,1,349.0,27.92"""
+    csv_resp = await async_client.post("/api/deals/orders/upload-csv", json={"csv_text": csv_text})
+    assert csv_resp.status_code == 200
+    csv_data = csv_resp.json()
+    assert csv_data["success"] is True
+    assert csv_data["orders_imported_count"] == 2
+    assert csv_data["total_commission_inr"] > 100
+
+    # 3. List orders
+    list_resp = await async_client.get("/api/deals/orders")
+    assert list_resp.status_code == 200
+    list_data = list_resp.json()
+    assert list_data["total_confirmed_orders"] >= 3
+    assert list_data["total_confirmed_commission_inr"] >= 400.0
+    assert len(list_data["orders"]) >= 3
+
+
+def test_loot_score_order_learning_feedback():
+    sample_deal = {
+        "effective_price": 599.0,
+        "mrp": 1299.0,
+        "discount_pct": 54,
+        "rating": 4.3,
+        "review_count": 2500,
+        "category": "Home & Kitchen",
+    }
+    # Base score without order data
+    base = compute_loot_score(sample_deal)
+    base_score = base["loot_score"]
+
+    # 1. Boost for proven high converter (>=5 orders) -> +25 pts
+    high_conv = compute_loot_score(sample_deal, historical_orders=6, conversion_rate=5.2)
+    assert high_conv["feedback_adjustment"] == 25
+    assert high_conv["loot_score"] >= min(100, base_score + 25)
+    assert any("Proven High Converter" in r for r in high_conv["reasons"])
+
+    # 2. Boost for proven converter (>=1 order) -> +15 pts
+    conv = compute_loot_score(sample_deal, historical_orders=2, conversion_rate=3.5)
+    assert conv["feedback_adjustment"] == 15
+    assert conv["loot_score"] >= min(100, base_score + 15)
+
+    # 3. Penalty for zero conversion on 50+ clicks -> -20 pts
+    zero_conv = compute_loot_score(sample_deal, historical_clicks=60, historical_orders=0)
+    assert zero_conv["feedback_adjustment"] == -20
+    assert zero_conv["loot_score"] == max(0, base_score - 20)
+    assert any("Zero Conversion Alert" in r for r in zero_conv["reasons"])
+
+
+@pytest.mark.asyncio
+async def test_zero_conversion_alerts_and_root_cause_diagnosis(async_client):
+    # Simulate high clicks on a high ticket deal without orders
+    subtag = "lf-wa-20261122-b09w2gfm7y-hm"
+    for _ in range(55):
+        await async_client.post("/api/deals/click", json={
+            "asin": "B09W2GFM7Y",
+            "channel": "whatsapp",
+            "subtag": subtag,
+        })
+
+    resp = await async_client.get("/api/deals/zero-conversion-alerts?threshold_clicks=50")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert data["alerts_count"] >= 1
+    alert = next((a for a in data["alerts"] if a["subtag"] == subtag), data["alerts"][0])
+    assert alert["clicks"] >= 50
+    assert alert["orders"] == 0
+    assert "root_cause_diagnosis" in alert
+    assert "recommended_action" in alert
+
+
+@pytest.mark.asyncio
+async def test_audience_subtag_parsing_and_revenue_summary(async_client):
+    # 1. Parse subtag metadata
+    hm = parse_subtag_metadata("lf-wa-homemaker-20261122-b002mpptb8")
+    assert hm["channel"] == "whatsapp"
+    assert hm["audience"] == "homemaker"
+    assert hm["asin"] == "B002MPPTB8"
+
+    hc = parse_subtag_metadata("lf-wa-hostel-b08v5q4x1c")
+    assert hc["audience"] == "hostel_college"
+
+    op = parse_subtag_metadata("lf-tg-20261122-b091cr2fxy-op")
+    assert op["channel"] == "telegram"
+    assert op["audience"] == "office_pro"
+
+    bi = parse_subtag_metadata("lf-wa-20261122-b002mpptb8-bi")
+    assert bi["audience"] == "budget_impulse"
+
+    # 2. Revenue summary check
+    resp = await async_client.get("/api/revenue/summary")
+    assert resp.status_code == 200
+    rev = resp.json()
+    assert "actual_confirmed_orders" in rev
+    assert "actual_confirmed_commission_inr" in rev
+    assert "actual_conversion_rate_pct" in rev
+    assert "zero_conversion_alerts" in rev
+    assert "audience_performance" in rev
+    assert len(rev["audience_performance"]) >= 4
+    audiences = [a["audience"] for a in rev["audience_performance"]]
+    assert "homemaker" in audiences
+    assert "budget_impulse" in audiences
+
 
 

@@ -176,6 +176,13 @@ export interface RevenueSummary {
   target_days: number;
   total_posts_generated: number;
   total_clicks: number;
+  actual_confirmed_orders?: number;
+  actual_confirmed_commission_inr?: number;
+  actual_confirmed_revenue_inr?: number;
+  actual_conversion_rate_pct?: number;
+  conversion_rate_warning?: string | null;
+  zero_conversion_alerts?: ZeroConversionAlert[];
+  audience_performance?: AudiencePerformanceItem[];
   clicks_by_channel: {
     whatsapp: number;
     telegram: number;
@@ -497,12 +504,63 @@ export interface RecommendedNextPost {
 export interface DailyPaceIndicator {
   target_commission_today_inr: number;
   achieved_commission_today_inr: number;
+  actual_confirmed_commission_inr?: number;
+  actual_confirmed_orders?: number;
+  actual_conversion_rate_pct?: number;
+  assumed_conversion_rate_pct?: number;
+  conversion_rate_warning?: string | null;
   target_sales_today: number;
   estimated_sales_today: number;
   remaining_sales_needed_today: number;
   pace_percentage: number;
   pace_status: string;
   summary_message: string;
+}
+
+export interface AmazonOrder {
+  id: string;
+  subtag: string;
+  asin: string;
+  order_id?: string | null;
+  items_count: number;
+  revenue_inr: number;
+  commission_inr: number;
+  channel: string;
+  audience?: string | null;
+  source: string;
+  notes?: string | null;
+  ordered_at?: string | null;
+}
+
+export interface ZeroConversionAlert {
+  subtag: string;
+  asin: string;
+  title: string;
+  deal_title?: string;
+  channel: string;
+  audience: string;
+  audience_label: string;
+  clicks: number;
+  orders: number;
+  conversion_rate: number;
+  deal_price: number;
+  discount_pct?: number;
+  rating?: number;
+  severity: "CRITICAL" | "WARNING";
+  root_cause_diagnosis: string;
+  recommended_action: string;
+}
+
+export interface AudiencePerformanceItem {
+  audience: string;
+  label: string;
+  description: string;
+  clicks: number;
+  orders: number;
+  revenue_inr: number;
+  commission_inr: number;
+  conversion_rate_pct: number;
+  primary_channel: string;
 }
 
 export interface DailyChecklistItem {
