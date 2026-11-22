@@ -18,6 +18,9 @@ from app.core.deal_analyzer import (
     compute_commission_estimate,
     extract_asin,
     FALLBACK_CURATED_DEALS,
+    evaluate_deal_quality,
+    generate_where_to_post_recommendations,
+    get_channel_performance_weights,
 )
 from app.config import settings
 
@@ -111,6 +114,8 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         total_est_commission_pool += (comm_rupees * 100)  # assume 100 conversions baseline
 
         sales_needed_10l = math.ceil(1000000.0 / comm_rupees) if comm_rupees > 0 else 999999
+        quality = evaluate_deal_quality({"effective_price": price, "discount_pct": meta.get("discount_pct", 40), "rating": meta.get("rating", 4.3), "review_count": meta.get("review_count", 4500), "category": cat})
+        where_to_post = generate_where_to_post_recommendations(cat, price, camp.name)
 
         recent_deals.append({
             "campaign_id": camp.id,
@@ -123,6 +128,8 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
             "commission_rate_percent": comm_info["commission_rate_percent"],
             "estimated_commission_rupees": comm_rupees,
             "sales_needed_for_10_lakh": sales_needed_10l,
+            "quality_verdict": quality,
+            "where_to_post": where_to_post,
             "subtag": f"lf-wa-{camp.id[:6]}",
             "created_at": camp.created_at.isoformat(),
         })
@@ -134,6 +141,8 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
             comm_info = compute_commission_estimate(d["category"], price)
             comm_rupees = comm_info["estimated_commission_rupees"]
             sales_needed_10l = math.ceil(1000000.0 / comm_rupees) if comm_rupees > 0 else 999999
+            quality = evaluate_deal_quality(d)
+            where_to_post = generate_where_to_post_recommendations(d["category"], price, d["title"])
             recent_deals.append({
                 "campaign_id": "seed",
                 "name": d["title"],
@@ -145,6 +154,8 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
                 "commission_rate_percent": comm_info["commission_rate_percent"],
                 "estimated_commission_rupees": comm_rupees,
                 "sales_needed_for_10_lakh": sales_needed_10l,
+                "quality_verdict": quality,
+                "where_to_post": where_to_post,
                 "subtag": f"lf-wa-{d['asin'][:6]}",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
@@ -156,6 +167,7 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         else 150.0
     )
     sales_needed_total = math.ceil(target / avg_comm)
+    channel_learning_weights = get_channel_performance_weights(clicks_by_channel)
 
     return {
         "target_commission_inr": target,
@@ -163,6 +175,7 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         "total_posts_generated": posts_count,
         "total_clicks": total_clicks,
         "clicks_by_channel": clicks_by_channel,
+        "channel_learning_weights": channel_learning_weights,
         "active_campaigns_count": len(campaigns),
         "estimated_commission_pool_inr": round(total_est_commission_pool, 2),
         "average_commission_per_sale_inr": avg_comm,

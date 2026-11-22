@@ -167,6 +167,7 @@ export interface RevenueSummary {
     x: number;
     other: number;
   };
+  channel_learning_weights?: Record<string, number>;
   active_campaigns_count: number;
   estimated_commission_pool_inr: number;
   average_commission_per_sale_inr: number;
@@ -191,5 +192,19 @@ export interface RevenueSummary {
     sales_needed_for_10_lakh: number;
     subtag: string;
     created_at: string;
+    quality_verdict?: {
+      verdict: string;
+      verdict_badge: string;
+      reason: string;
+      criteria_passed_count: number;
+      criteria: Record<string, boolean>;
+    };
+    where_to_post?: {
+      whatsapp_groups: Array<{ name: string; angle: string }>;
+      telegram_channels: string[];
+      subreddits: string[];
+      hashtags: string[];
+      best_posting_window: string;
+    };
   }>;
 }

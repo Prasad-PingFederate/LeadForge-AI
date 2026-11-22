@@ -191,6 +191,171 @@ def compute_commission_estimate(category: str, deal_price: float) -> Dict[str, A
     }
 
 
+def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Sales Manager Deal Quality Filter (Phase 3 Standard):
+    Rigorously gates every deal against 6 strict criteria to protect conversion rates.
+    Criteria:
+      1. Discount >= 35%
+      2. Price between ₹99 and ₹2,999 (Impulse sweet spot)
+      3. Rating >= 4.2
+      4. Review count >= 500
+      5. Commission rate >= 6%
+      6. Not 0% commission category (smartphones)
+    """
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 0.0)
+    disc = int(deal.get("discount_pct") or 0)
+    rating = float(deal.get("rating") or 0.0)
+    reviews = int(deal.get("review_count") or 0)
+    cat = (deal.get("category") or "").lower()
+
+    comm_info = compute_commission_estimate(cat, price)
+    rate = comm_info["commission_rate_percent"]
+    is_zero_roi = comm_info["is_zero_roi"] or rate == 0.0
+
+    c1_discount = disc >= 35
+    c2_price = 99.0 <= price <= 2999.0
+    c3_rating = rating >= 4.2
+    c4_reviews = reviews >= 500
+    c5_commission = rate >= 6.0
+    c6_not_zero_roi = not is_zero_roi
+
+    criteria_passed = sum([
+        c1_discount,
+        c2_price,
+        c3_rating,
+        c4_reviews,
+        c5_commission,
+        c6_not_zero_roi,
+    ])
+
+    # Verdict Determination
+    if is_zero_roi:
+        verdict = "KILL"
+        verdict_badge = "🔴 KILL"
+        reason = "0% Amazon commission category. Promotes zero revenue."
+    elif rating < 4.0 and reviews > 50:
+        verdict = "KILL"
+        verdict_badge = "🔴 KILL"
+        reason = f"Poor rating ({rating}/5). High return rate hazard."
+    elif criteria_passed >= 5 and c5_commission and c6_not_zero_roi:
+        verdict = "PROMOTE"
+        verdict_badge = "🟢 PROMOTE"
+        reason = f"High conversion sweet spot. {disc}% discount, ₹{price:,.0f} price, {rate}% commission."
+    elif criteria_passed >= 3:
+        verdict = "HOLD"
+        verdict_badge = "🟡 HOLD"
+        if price > 2999.0:
+            reason = f"High ticket price (₹{price:,.0f}). Requires targeted buyer audience."
+        elif disc < 35:
+            reason = f"Modest discount ({disc}%). Hold for deeper price drops."
+        else:
+            reason = "Moderate performance metrics. Promote during flash campaigns."
+    else:
+        verdict = "KILL"
+        verdict_badge = "🔴 KILL"
+        reason = "Fails sales manager quality thresholds."
+
+    return {
+        "verdict": verdict,
+        "verdict_badge": verdict_badge,
+        "reason": reason,
+        "criteria_passed_count": criteria_passed,
+        "criteria": {
+            "discount_ge_35pct": c1_discount,
+            "price_between_99_and_2999": c2_price,
+            "rating_ge_4_2": c3_rating,
+            "reviews_ge_500": c4_reviews,
+            "commission_ge_6pct": c5_commission,
+            "not_zero_commission": c6_not_zero_roi,
+        },
+    }
+
+
+def generate_where_to_post_recommendations(
+    category: str,
+    deal_price: float,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    Distribution Engine Recommendations (Phase 2):
+    Suggests high-converting WhatsApp group personas, Telegram channels,
+    subreddits, and hashtags for maximum click intent.
+    """
+    cat_lower = category.lower()
+
+    if any(k in cat_lower for k in ["kitchen", "home", "cooker", "appliance"]):
+        wa_groups = [
+            {"name": "Kitchen & Homemakers VIP Broadcast", "angle": "Daily cooking savings, verified brand durability"},
+            {"name": "Hostel & Bachelor Fast Kitchen Deals", "angle": "Quick meal prep gadgets under ₹1,000"},
+            {"name": "Smart Family Home Savings Group", "angle": "Replacement utility & Prime free delivery"},
+        ]
+        tg_channels = ["t.me/kitchengadgetsindia", "t.me/lootdealsindia", "t.me/home_deals_alert"]
+        subreddits = ["r/dealsforindia", "r/indiasocial", "r/GadgetsIndia"]
+        hashtags = ["#KitchenDeals", "#HomeAppliance", "#AmazonPriceDrop", "#LootDealsIndia", "#BharatBazaro"]
+        best_time = "Morning 8:30 AM – 10:30 AM & Evening 7:30 PM – 9:30 PM"
+
+    elif any(k in cat_lower for k in ["beauty", "personal", "grocery"]):
+        wa_groups = [
+            {"name": "Beauty & Skincare Steals Club", "angle": "Authentic brand discounts vs counterfeit local knockoffs"},
+            {"name": "Daily Grocery & Household Loot Alert", "angle": "Stock-up essential under ₹499 with lightning delivery"},
+            {"name": "College Grooming & Lifestyle Deals", "angle": "Personal care price drops under ₹300"},
+        ]
+        tg_channels = ["t.me/lootdealsindia", "t.me/beautylootsindia", "t.me/grocerydealsalert"]
+        subreddits = ["r/dealsforindia", "r/IndianSkincareAddicts", "r/indiasocial"]
+        hashtags = ["#BeautyDeals", "#DailyEssentials", "#AmazonLoot", "#PriceDropAlert", "#BharatBazaro"]
+        best_time = "Afternoon 1:30 PM – 3:30 PM & Night 9:00 PM – 11:00 PM"
+
+    else:
+        wa_groups = [
+            {"name": "Tech & Gadget Bargain Hunters", "angle": "Impulse accessory drops under ₹1,499 with 1-Yr warranty"},
+            {"name": "Student & Desk Setup Deals", "angle": "Budget peripherals and workspace enhancers"},
+            {"name": "Loot Price Drop Flash Alerts", "angle": "All-time low lightning deal with instant checkout"},
+        ]
+        tg_channels = ["t.me/lootdealsindia", "t.me/amazon_flipkart_loots", "t.me/techdeals_india"]
+        subreddits = ["r/dealsforindia", "r/GadgetsIndia", "r/IndianGaming"]
+        hashtags = ["#AmazonDeals", "#TechDeals", "#PriceDrop", "#LootDealsIndia", "#BharatBazaro"]
+        best_time = "Evening 6:00 PM – 9:30 PM"
+
+    return {
+        "whatsapp_groups": wa_groups,
+        "telegram_channels": tg_channels,
+        "subreddits": subreddits,
+        "hashtags": hashtags,
+        "best_posting_window": best_time,
+    }
+
+
+def get_channel_performance_weights(clicks_by_channel: Optional[Dict[str, int]] = None) -> Dict[str, float]:
+    """
+    Self-Learning Loop (Phase 5):
+    Dynamically scales strategy discovery quotas based on verified clicks.
+    Channels driving higher volume receive proportional discovery multipliers.
+    """
+    baseline = {
+        "whatsapp": 1.5,   # Highest converting channel
+        "telegram": 1.25,
+        "reddit": 1.0,
+        "x": 0.8,
+    }
+    if not clicks_by_channel:
+        return baseline
+
+    total = sum(clicks_by_channel.values())
+    if total < 5:
+        return baseline
+
+    weights = {}
+    for ch, base in baseline.items():
+        ch_clicks = clicks_by_channel.get(ch, 0)
+        share = ch_clicks / total
+        # Scale between 0.5x and 2.5x
+        multiplier = round(base * (0.7 + (share * 1.6)), 2)
+        weights[ch] = max(0.5, min(multiplier, 2.5))
+
+    return weights
+
+
 async def fetch_live_deals(force_refresh: bool = False) -> List[Dict[str, Any]]:
     """Fetches and caches the 170+ verified live deals from BharatBazaro / GitHub raw feed."""
     if not force_refresh:

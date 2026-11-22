@@ -16,6 +16,11 @@ import {
   MessageCircle,
   Send,
   Zap,
+  Calculator,
+  Sliders,
+  Check,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { fetchRevenueSummary, trackDealClick } from "@/lib/api";
 import { RevenueSummary } from "@/types";
@@ -25,11 +30,22 @@ export default function RevenueDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase 4: Interactive ₹10 Lakh Math Calculator State
+  const [calcTarget, setCalcTarget] = useState<number>(1000000);
+  const [calcDays, setCalcDays] = useState<number>(90);
+  const [calcAvgPrice, setCalcAvgPrice] = useState<number>(1499);
+  const [calcCommRate, setCalcCommRate] = useState<number>(8.0);
+  const [calcConvRate, setCalcConvRate] = useState<number>(1.5); // %
+  const [calcClicksPerPost, setCalcClicksPerPost] = useState<number>(75);
+
   const loadData = async () => {
     try {
       setLoading(true);
       const res = await fetchRevenueSummary();
       setData(res);
+      if (res.average_commission_per_sale_inr) {
+        setCalcAvgPrice(Math.round(res.average_commission_per_sale_inr / 0.08));
+      }
       setError(null);
     } catch (err: any) {
       setError(err.message || "Failed to load revenue metrics");
@@ -55,6 +71,14 @@ export default function RevenueDashboard() {
   const estPool = data?.estimated_commission_pool_inr || 0;
   const progressPct = Math.min(100, Math.round((estPool / target) * 100));
 
+  // Phase 4 Math Calculations
+  const calcCommPerSale = Math.max(1, (calcAvgPrice * calcCommRate) / 100);
+  const calcTotalSalesNeeded = Math.ceil(calcTarget / calcCommPerSale);
+  const calcDailySalesNeeded = Math.ceil(calcTotalSalesNeeded / calcDays);
+  const calcTotalClicksNeeded = Math.ceil(calcTotalSalesNeeded / (calcConvRate / 100));
+  const calcDailyClicksNeeded = Math.ceil(calcTotalClicksNeeded / calcDays);
+  const calcDailyPostsNeeded = Math.ceil(calcDailyClicksNeeded / calcClicksPerPost);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header Banner */}
@@ -70,7 +94,7 @@ export default function RevenueDashboard() {
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl">
               Ruthless conversion tracking for tag <code className="font-mono text-emerald-300 bg-slate-950 px-1.5 py-0.5 rounded border border-emerald-800/40">dammaiprasad-21</code>.
-              Focusing 100% on high-intent WhatsApp broadcasts and verified price drops.
+              Focusing 100% on high-intent WhatsApp broadcasts, Telegram loot alerts, and verified price drops.
             </p>
           </div>
 
@@ -158,69 +182,267 @@ export default function RevenueDashboard() {
         </div>
       </div>
 
-      {/* Channel Performance Breakdown */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
-        <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Share2 className="w-4 h-4 text-emerald-400" />
-          <span>Clicks by High-Intent Distribution Channel</span>
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/40">
-            <div className="flex items-center gap-2 mb-1">
-              <MessageCircle className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold text-slate-200">WhatsApp VIP</span>
+      {/* Phase 4: ₹10 Lakh Interactive Math Calculator */}
+      <div className="bg-slate-900 border border-emerald-800/50 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-emerald-400" />
+              <span>₹10 Lakh Sales Math & Daily Posting Quota Calculator</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Adjust conversion variables to compute the exact daily operational rhythm required to hit ₹10 Lakh in commissions.
+            </p>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono text-xs font-bold self-start sm:self-auto">
+            Phase 4 Standard
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Controls Column */}
+          <div className="space-y-4 md:col-span-1 bg-slate-950/80 p-5 rounded-xl border border-slate-800">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1 flex justify-between">
+                <span>Target Commission</span>
+                <span className="text-emerald-400 font-mono">₹{calcTarget.toLocaleString("en-IN")}</span>
+              </label>
+              <input
+                type="number"
+                value={calcTarget}
+                onChange={(e) => setCalcTarget(Number(e.target.value) || 1000000)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500"
+              />
             </div>
-            <div className="text-xl font-bold font-mono text-emerald-400">
-              {data?.clicks_by_channel.whatsapp || 0} clicks
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1 flex justify-between">
+                <span>Avg. Deal Price (₹)</span>
+                <span className="text-emerald-400 font-mono">₹{calcAvgPrice}</span>
+              </label>
+              <input
+                type="range"
+                min="299"
+                max="4999"
+                step="50"
+                value={calcAvgPrice}
+                onChange={(e) => setCalcAvgPrice(Number(e.target.value))}
+                className="w-full accent-emerald-500 cursor-pointer"
+              />
             </div>
-            <span className="text-[10px] text-slate-400">#1 Highest Converting Channel</span>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1 flex justify-between">
+                <span>Avg. Commission Rate</span>
+                <span className="text-emerald-400 font-mono">{calcCommRate}%</span>
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="9"
+                step="0.5"
+                value={calcCommRate}
+                onChange={(e) => setCalcCommRate(Number(e.target.value))}
+                className="w-full accent-emerald-500 cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1 flex justify-between">
+                <span>WhatsApp Conversion Rate</span>
+                <span className="text-cyan-400 font-mono">{calcConvRate}%</span>
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="3.0"
+                step="0.1"
+                value={calcConvRate}
+                onChange={(e) => setCalcConvRate(Number(e.target.value))}
+                className="w-full accent-cyan-500 cursor-pointer"
+              />
+              <span className="text-[10px] text-slate-500">Benchmark: 1.0%–2.0% for WhatsApp VIP loot broadcasts</span>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1 flex justify-between">
+                <span>Avg Clicks per Broadcast</span>
+                <span className="text-amber-400 font-mono">{calcClicksPerPost} clicks</span>
+              </label>
+              <input
+                type="range"
+                min="20"
+                max="250"
+                step="5"
+                value={calcClicksPerPost}
+                onChange={(e) => setCalcClicksPerPost(Number(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer"
+              />
+            </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-950 border border-sky-900/40">
-            <div className="flex items-center gap-2 mb-1">
-              <Send className="w-4 h-4 text-sky-400" />
-              <span className="text-xs font-bold text-slate-200">Telegram Deals</span>
+          {/* Results Display Columns */}
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-1">
+                  Commission per Sale
+                </span>
+                <div className="text-3xl font-black font-mono text-emerald-400">
+                  ₹{calcCommPerSale.toFixed(2)}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  At ₹{calcAvgPrice.toLocaleString("en-IN")} deal price with {calcCommRate}% Amazon India category commission.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono text-slate-300">
+                1 sale = <span className="text-emerald-400 font-bold">₹{calcCommPerSale.toFixed(0)}</span> in pocket
+              </div>
             </div>
-            <div className="text-xl font-bold font-mono text-sky-400">
-              {data?.clicks_by_channel.telegram || 0} clicks
-            </div>
-            <span className="text-[10px] text-slate-400">Flash Price Drop Alerts</span>
-          </div>
 
-          <div className="p-4 rounded-xl bg-slate-950 border border-orange-900/40">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-bold text-orange-400">r/</span>
-              <span className="text-xs font-bold text-slate-200">Reddit Communities</span>
+            <div className="p-5 rounded-xl bg-slate-950 border border-amber-900/40 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-1">
+                  Total Orders Required
+                </span>
+                <div className="text-3xl font-black font-mono text-amber-300">
+                  {calcTotalSalesNeeded.toLocaleString("en-IN")} sales
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  Need <span className="font-bold text-amber-300 font-mono">{calcDailySalesNeeded} orders / day</span> across 90 days.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono text-slate-300">
+                Daily Revenue Pace: <span className="text-amber-300 font-bold">₹{Math.ceil(calcTarget / calcDays).toLocaleString("en-IN")} / day</span>
+              </div>
             </div>
-            <div className="text-xl font-bold font-mono text-orange-400">
-              {data?.clicks_by_channel.reddit || 0} clicks
-            </div>
-            <span className="text-[10px] text-slate-400">r/dealsforindia, r/GadgetsIndia</span>
-          </div>
 
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-bold text-slate-400">𝕏</span>
-              <span className="text-xs font-bold text-slate-200">X / Twitter</span>
+            <div className="p-5 rounded-xl bg-slate-950 border border-cyan-900/40 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-1">
+                  Total Clicks Required
+                </span>
+                <div className="text-3xl font-black font-mono text-cyan-400">
+                  {calcTotalClicksNeeded.toLocaleString("en-IN")}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  Target: <span className="font-bold text-cyan-300 font-mono">{calcDailyClicksNeeded.toLocaleString("en-IN")} clicks / day</span> (at {calcConvRate}% CVR).
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800/80 text-xs font-mono text-slate-300">
+                Tracked via <span className="text-cyan-400 font-bold">lf-wa-*</span> tags
+              </div>
             </div>
-            <div className="text-xl font-bold font-mono text-slate-300">
-              {data?.clicks_by_channel.x || 0} clicks
+
+            <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-950/60 to-slate-950 border border-emerald-800 flex flex-col justify-between">
+              <div>
+                <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-300 block mb-1">
+                  Daily WhatsApp Broadcast Quota
+                </span>
+                <div className="text-3xl font-black font-mono text-white">
+                  {calcDailyPostsNeeded} posts / day
+                </div>
+                <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                  Post <span className="font-bold text-emerald-400">{calcDailyPostsNeeded} verified drops</span> daily across Homemaker, Hostel & Budget WhatsApp groups.
+                </p>
+              </div>
+              <div className="mt-4 pt-3 border-t border-emerald-800/60 text-xs font-semibold text-emerald-300">
+                👉 Direct path to hitting ₹10,00,000!
+              </div>
             </div>
-            <span className="text-[10px] text-slate-400">Price drop tweets</span>
           </div>
         </div>
       </div>
 
-      {/* Active Deal Inventory & Estimated Commission per Sale */}
+      {/* Phase 5: Self-Learning Adaptive Multipliers & Channel Breakdown */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <Share2 className="w-4 h-4 text-emerald-400" />
+            <span>Phase 5 Self-Learning Loop: Dynamic Channel Quotas</span>
+          </h2>
+          <span className="text-xs text-slate-400 font-mono">
+            Auto-weights strategies by real click velocity
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/60">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                WhatsApp VIP
+              </span>
+              <span className="text-[10px] font-bold font-mono bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800/60">
+                {data?.channel_learning_weights?.whatsapp || 1.5}x Boost
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-emerald-400 mt-2">
+              {data?.clicks_by_channel.whatsapp || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">#1 Highest Converting Channel</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-950 border border-sky-900/60">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Send className="w-3.5 h-3.5 text-sky-400" />
+                Telegram Deals
+              </span>
+              <span className="text-[10px] font-bold font-mono bg-sky-950 text-sky-300 px-1.5 py-0.5 rounded border border-sky-800/60">
+                {data?.channel_learning_weights?.telegram || 1.25}x Boost
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-sky-400 mt-2">
+              {data?.clicks_by_channel.telegram || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">Instant price drop alerts</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-950 border border-orange-900/60">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span className="text-orange-400 font-bold">r/</span>
+                Reddit Forums
+              </span>
+              <span className="text-[10px] font-bold font-mono bg-orange-950 text-orange-300 px-1.5 py-0.5 rounded border border-orange-800/60">
+                {data?.channel_learning_weights?.reddit || 1.0}x
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-orange-400 mt-2">
+              {data?.clicks_by_channel.reddit || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">r/dealsforindia recommendations</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span className="text-slate-400 font-bold">𝕏</span>
+                Twitter / X
+              </span>
+              <span className="text-[10px] font-bold font-mono bg-slate-900 text-slate-300 px-1.5 py-0.5 rounded border border-slate-800">
+                {data?.channel_learning_weights?.x || 0.8}x
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-slate-300 mt-2">
+              {data?.clicks_by_channel.x || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-1">Price drop hashtags</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Phase 3: Deal Quality Filter & Economics Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div className="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span>Deal Revenue & Commission Economics (Sales Manager View)</span>
+              <span>Phase 3 Quality Gated Deals (Promote / Hold / Kill Verdicts)</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Clear estimated commission (₹) and exact sales needed to reach ₹10 Lakh per deal.
+              Only deals passing the 6 sales manager criteria (≥35% discount, ₹99–₹2,999, ≥4.2 rating, ≥500 reviews, ≥6% commission) earn the 🟢 PROMOTE verdict.
             </p>
           </div>
         </div>
@@ -229,68 +451,77 @@ export default function RevenueDashboard() {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
               <tr>
+                <th className="py-3 px-4">Quality Verdict</th>
                 <th className="py-3 px-4">Deal Title / ASIN</th>
                 <th className="py-3 px-4">Category</th>
                 <th className="py-3 px-4">Deal Price / MRP</th>
                 <th className="py-3 px-4">Comm. Rate</th>
-                <th className="py-3 px-4 text-emerald-400 font-bold">Est. Commission / Sale</th>
+                <th className="py-3 px-4 text-emerald-400 font-bold">Est. Comm. / Sale</th>
                 <th className="py-3 px-4 text-amber-300">Sales to ₹10L</th>
-                <th className="py-3 px-4">Subtag</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-300">
               {data?.recent_deals && data.recent_deals.length > 0 ? (
-                data.recent_deals.map((deal, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-100 max-w-xs truncate" title={deal.name}>
-                        {deal.name}
-                      </div>
-                      <div className="font-mono text-[11px] text-slate-500">ASIN: {deal.asin}</div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
-                        {deal.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-mono">
-                      <div className="text-slate-100 font-bold">₹{deal.deal_price.toLocaleString("en-IN")}</div>
-                      <div className="text-slate-500 text-[11px] line-through">₹{deal.mrp.toLocaleString("en-IN")} ({deal.discount_pct}% off)</div>
-                    </td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-200">
-                      {deal.commission_rate_percent}%
-                    </td>
-                    <td className="py-3 px-4 font-mono font-black text-sm text-emerald-400 bg-emerald-950/20">
-                      +₹{deal.estimated_commission_rupees.toFixed(2)}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-amber-300 font-semibold">
-                      {deal.sales_needed_for_10_lakh.toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-400">
-                      {deal.subtag}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <a
-                        href={`https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${deal.subtag}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() =>
-                          trackDealClick({
-                            asin: deal.asin,
-                            channel: "admin",
-                            subtag: deal.subtag,
-                            campaign_id: deal.campaign_id,
-                          })
-                        }
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] transition-colors"
-                      >
-                        <span>Check Deal</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </td>
-                  </tr>
-                ))
+                data.recent_deals.map((deal, idx) => {
+                  const verdict = deal.quality_verdict?.verdict || (deal.commission_rate_percent >= 6 && deal.discount_pct >= 35 ? "PROMOTE" : "HOLD");
+                  return (
+                    <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold font-mono inline-flex items-center gap-1 ${
+                          verdict === "PROMOTE" ? "bg-emerald-950 text-emerald-300 border border-emerald-800" :
+                          verdict === "HOLD" ? "bg-amber-950 text-amber-300 border border-amber-800" :
+                          "bg-rose-950 text-rose-300 border border-rose-800"
+                        }`}>
+                          {verdict === "PROMOTE" ? "🟢 PROMOTE" : verdict === "HOLD" ? "🟡 HOLD" : "🔴 KILL"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-100 max-w-xs truncate" title={deal.name}>
+                          {deal.name}
+                        </div>
+                        <div className="font-mono text-[11px] text-slate-500">ASIN: {deal.asin}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
+                          {deal.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono">
+                        <div className="text-slate-100 font-bold">₹{deal.deal_price.toLocaleString("en-IN")}</div>
+                        <div className="text-slate-500 text-[11px] line-through">₹{deal.mrp.toLocaleString("en-IN")} ({deal.discount_pct}% off)</div>
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-slate-200">
+                        {deal.commission_rate_percent}%
+                      </td>
+                      <td className="py-3 px-4 font-mono font-black text-sm text-emerald-400 bg-emerald-950/20">
+                        +₹{deal.estimated_commission_rupees.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-amber-300 font-semibold">
+                        {deal.sales_needed_for_10_lakh.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <a
+                          href={`https://www.amazon.in/dp/${deal.asin}?tag=dammaiprasad-21&linkCode=ll1&ascsubtag=${deal.subtag}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() =>
+                            trackDealClick({
+                              asin: deal.asin,
+                              channel: "admin",
+                              subtag: deal.subtag,
+                              campaign_id: deal.campaign_id,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] transition-colors"
+                        >
+                          <span>Open Deal</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={8} className="py-6 text-center text-slate-500">
@@ -317,6 +548,7 @@ export default function RevenueDashboard() {
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
                     clk.channel === "whatsapp" ? "bg-emerald-950 text-emerald-400 border border-emerald-800" :
                     clk.channel === "telegram" ? "bg-sky-950 text-sky-400 border border-sky-800" :
+                    clk.channel === "reddit" ? "bg-orange-950 text-orange-400 border border-orange-800" :
                     "bg-slate-950 text-slate-300 border border-slate-800"
                   }`}>
                     {clk.channel}

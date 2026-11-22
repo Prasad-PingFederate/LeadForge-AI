@@ -11,6 +11,8 @@ from app.core.deal_analyzer import (
     get_deal_by_asin,
     search_live_deals,
     get_top_converting_deals,
+    evaluate_deal_quality,
+    generate_where_to_post_recommendations,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,6 +145,8 @@ class ProfilerAgent:
                 image_url = matched_deal.get("image_url", "")
                 deal_url = to_canonical_affiliate_url(deal_asin, subtag="lf-deal")
                 comm_info = compute_commission_estimate(category, deal_price)
+                quality = evaluate_deal_quality(matched_deal)
+                where_to_post = generate_where_to_post_recommendations(category, deal_price, deal_title)
 
                 icp_dict["product_name"] = deal_title
                 icp_dict["category"] = category
@@ -167,6 +171,8 @@ class ProfilerAgent:
                     "estimated_commission_rupees": comm_info["estimated_commission_rupees"],
                     "is_impulse_sweet_spot": comm_info["is_impulse_sweet_spot"],
                     "is_zero_roi": comm_info["is_zero_roi"],
+                    "quality_verdict": quality,
+                    "where_to_post": where_to_post,
                 }
             else:
                 category = icp_dict.get("category", "Home & Kitchen")

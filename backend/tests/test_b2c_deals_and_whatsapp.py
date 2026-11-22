@@ -10,6 +10,9 @@ from app.core.deal_analyzer import (
     search_live_deals,
     get_top_converting_deals,
     generate_channel_subtag,
+    evaluate_deal_quality,
+    generate_where_to_post_recommendations,
+    get_channel_performance_weights,
 )
 from app.core.cache import TTLCache
 from app.agents.profiler_agent import profiler_agent
@@ -215,3 +218,59 @@ async def test_revenue_and_click_tracking(async_client: AsyncClient):
     assert "amazon.in" in resp_redir.headers["location"]
     assert "dammaiprasad-21" in resp_redir.headers["location"]
     assert "lf-wa-20261122-B002MPPTB8" in resp_redir.headers["location"]
+
+
+def test_deal_quality_filter():
+    # Good impulse deal -> PROMOTE
+    good_deal = {
+        "title": "Pigeon Electric Kettle",
+        "category": "Home & Kitchen",
+        "effective_price": 599.0,
+        "discount_pct": 60,
+        "rating": 4.4,
+        "review_count": 18200,
+    }
+    res_good = evaluate_deal_quality(good_deal)
+    assert res_good["verdict"] == "PROMOTE"
+    assert "🟢" in res_good["verdict_badge"]
+
+    # 0% commission mobile -> KILL
+    mobile_deal = {
+        "title": "OnePlus 12 5G",
+        "category": "Smartphones",
+        "effective_price": 64999.0,
+        "discount_pct": 10,
+        "rating": 4.5,
+        "review_count": 2200,
+    }
+    res_mobile = evaluate_deal_quality(mobile_deal)
+    assert res_mobile["verdict"] == "KILL"
+    assert "0%" in res_mobile["reason"]
+
+    # Expensive kitchen item (>3000) with good discount -> HOLD
+    high_ticket = {
+        "title": "Bosch 12 Place Dishwasher",
+        "category": "Home & Kitchen",
+        "effective_price": 38999.0,
+        "discount_pct": 40,
+        "rating": 4.5,
+        "review_count": 3200,
+    }
+    res_high = evaluate_deal_quality(high_ticket)
+    assert res_high["verdict"] in ["HOLD", "PROMOTE"]
+
+
+def test_where_to_post_recommendations():
+    recs = generate_where_to_post_recommendations("Home & Kitchen", 599.0, "Kettle")
+    assert len(recs["whatsapp_groups"]) >= 1
+    assert len(recs["telegram_channels"]) >= 1
+    assert "r/dealsforindia" in recs["subreddits"]
+    assert any("Kitchen" in h for h in recs["hashtags"])
+    assert "best_posting_window" in recs
+
+
+def test_channel_performance_learning_weights():
+    # High WhatsApp clicks -> higher WhatsApp discovery multiplier
+    weights = get_channel_performance_weights({"whatsapp": 85, "telegram": 15, "reddit": 5, "x": 2})
+    assert weights["whatsapp"] > weights["x"]
+    assert weights["whatsapp"] >= 1.5

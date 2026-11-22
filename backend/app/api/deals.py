@@ -9,6 +9,8 @@ from app.core.deal_analyzer import (
     get_top_converting_deals,
     compute_commission_estimate,
     to_canonical_affiliate_url,
+    evaluate_deal_quality,
+    generate_where_to_post_recommendations,
 )
 from app.config import settings
 
@@ -43,18 +45,22 @@ async def list_live_deals(
     else:
         matched = all_deals[:limit]
 
-    # Enrich with canonical affiliate link and commission info
+    # Enrich with canonical affiliate link, commission info, and quality verdict
     enriched_deals = []
     for d in matched:
         asin = d.get("asin") or ""
         cat = d.get("category", "General")
         price = float(d.get("effective_price") or d.get("list_price") or 599.0)
         comm = compute_commission_estimate(cat, price)
+        quality = evaluate_deal_quality(d)
+        where_to_post = generate_where_to_post_recommendations(cat, price, d.get("title", ""))
 
         enriched_deals.append({
             **d,
             "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag="bb-api"),
             "commission_info": comm,
+            "quality_verdict": quality,
+            "where_to_post": where_to_post,
         })
 
     return {
@@ -75,11 +81,15 @@ async def get_live_deal_by_asin(asin: str):
     cat = deal.get("category", "General")
     price = float(deal.get("effective_price") or deal.get("list_price") or 599.0)
     comm = compute_commission_estimate(cat, price)
+    quality = evaluate_deal_quality(deal)
+    where_to_post = generate_where_to_post_recommendations(cat, price, deal.get("title", ""))
 
     return {
         **deal,
         "canonical_affiliate_url": to_canonical_affiliate_url(deal.get("asin", asin), subtag="bb-api-detail"),
         "commission_info": comm,
+        "quality_verdict": quality,
+        "where_to_post": where_to_post,
     }
 
 
@@ -93,11 +103,15 @@ async def list_top_converting_deals(limit: int = Query(10, ge=1, le=50)):
         cat = d.get("category", "General")
         price = float(d.get("effective_price") or d.get("list_price") or 599.0)
         comm = compute_commission_estimate(cat, price)
+        quality = evaluate_deal_quality(d)
+        where_to_post = generate_where_to_post_recommendations(cat, price, d.get("title", ""))
 
         enriched.append({
             **d,
             "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag="bb-top"),
             "commission_info": comm,
+            "quality_verdict": quality,
+            "where_to_post": where_to_post,
         })
 
     return {

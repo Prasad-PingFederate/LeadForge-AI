@@ -17,6 +17,8 @@ import {
   Copy,
   Check,
   Share2,
+  Target,
+  DollarSign,
 } from "lucide-react";
 import { updateOutreach, dispatchOutreach, postReplyFeedback, trackDealClick } from "@/lib/api";
 
@@ -79,6 +81,33 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
       outreach_id: message.id,
     });
     const url = `https://t.me/share/url?url=${encodeURIComponent(affUrl)}&text=${encodeURIComponent(textToShare)}`;
+    window.open(url, "_blank");
+  };
+
+  const handleOpenReddit = () => {
+    const textToShare = socialReply;
+    const asinMatch = (message.deal_affiliate_url || "").match(/dp\/([A-Z0-9]{10})/i);
+    trackDealClick({
+      asin: asinMatch ? asinMatch[1] : "B002MPPTB8",
+      channel: "reddit",
+      subtag: message.subtag || "lf-rd-manual",
+      outreach_id: message.id,
+    });
+    const title = subject || "Verified Price Drop on Amazon India";
+    const url = `https://reddit.com/r/dealsforindia/submit?title=${encodeURIComponent(title)}&text=${encodeURIComponent(textToShare)}`;
+    window.open(url, "_blank");
+  };
+
+  const handleOpenX = () => {
+    const textToShare = linkedinDm;
+    const asinMatch = (message.deal_affiliate_url || "").match(/dp\/([A-Z0-9]{10})/i);
+    trackDealClick({
+      asin: asinMatch ? asinMatch[1] : "B002MPPTB8",
+      channel: "x",
+      subtag: message.subtag || "lf-x-manual",
+      outreach_id: message.id,
+    });
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(textToShare)}`;
     window.open(url, "_blank");
   };
 
@@ -224,7 +253,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
           }`}
         >
           <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-          <span>WhatsApp Broadcast (VIP)</span>
+          <span>🔥 WhatsApp Broadcast (VIP)</span>
         </button>
 
         {/* Telegram Tab */}
@@ -237,51 +266,38 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
           }`}
         >
           <Send className="w-3.5 h-3.5 text-sky-400" />
-          <span>Telegram Alert</span>
+          <span>🚨 Telegram Price Drop</span>
         </button>
 
-        {/* Email Tabs */}
-        <button
-          onClick={() => setActiveTab("step1")}
-          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "step1" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          Email 1: Hook
-        </button>
-        <button
-          onClick={() => setActiveTab("step2")}
-          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "step2" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          Email 2: Value Proof
-        </button>
-        <button
-          onClick={() => setActiveTab("step3")}
-          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "step3" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          Email 3: Breakup
-        </button>
-        <button
-          onClick={() => setActiveTab("linkedin")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            activeTab === "linkedin" ? "border-sky-500 text-sky-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Linkedin className="w-3.5 h-3.5" />
-          <span>LinkedIn DM</span>
-        </button>
         <button
           onClick={() => setActiveTab("social")}
           className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === "social" ? "border-orange-500 text-orange-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>Social Reply</span>
+          <span className="text-orange-400 font-bold">r/</span>
+          <span>Reddit (r/dealsforindia)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("linkedin")}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === "linkedin" ? "border-slate-200 text-slate-100 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <span className="font-bold">𝕏</span>
+          <span>Twitter / X Drop</span>
+        </button>
+
+        {/* Cold Email (Deprioritized for B2C deals) */}
+        <button
+          onClick={() => setActiveTab("step1")}
+          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab.startsWith("step") ? "border-slate-600 text-slate-300 font-semibold" : "border-transparent text-slate-600 hover:text-slate-400"
+          }`}
+        >
+          <span className="text-[10px] text-slate-500 font-mono mr-1">[Low B2C Intent]</span>
+          <span>Cold Email</span>
         </button>
       </div>
 
@@ -367,6 +383,53 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                   <span>Post to Telegram ↗</span>
                 </button>
               )}
+
+              {activeTab === "social" && (
+                <button
+                  type="button"
+                  onClick={handleOpenReddit}
+                  className="inline-flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300 font-semibold transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Post to Reddit ↗</span>
+                </button>
+              )}
+
+              {activeTab === "linkedin" && (
+                <button
+                  type="button"
+                  onClick={handleOpenX}
+                  className="inline-flex items-center gap-1 text-[11px] text-slate-100 hover:text-white font-semibold transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Post to 𝕏 ↗</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Where to Post Recommendations Box (Phase 2) */}
+          <div className="p-3 my-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2">
+            <div className="flex items-center justify-between text-slate-300 font-bold uppercase tracking-wider text-[10px]">
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <Target className="w-3.5 h-3.5" />
+                <span>Where to Post for ₹10L Conversion:</span>
+              </span>
+              <span className="text-slate-500 font-mono">Prime Shopping Window: 8:30–10:30 AM & 7:30–9:30 PM</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+              <div className="p-2 rounded bg-slate-900 border border-emerald-950/80">
+                <span className="font-bold text-emerald-300 block mb-0.5">WhatsApp Groups:</span>
+                <span className="text-slate-400">Homemakers VIP, Family Savings Club, College Hostel Loots</span>
+              </div>
+              <div className="p-2 rounded bg-slate-900 border border-sky-950/80">
+                <span className="font-bold text-sky-300 block mb-0.5">Telegram Channels:</span>
+                <span className="text-slate-400">t.me/lootdealsindia, t.me/kitchengadgetsindia</span>
+              </div>
+              <div className="p-2 rounded bg-slate-900 border border-orange-950/80">
+                <span className="font-bold text-orange-300 block mb-0.5">Reddit & 𝕏:</span>
+                <span className="text-slate-400">r/dealsforindia, r/GadgetsIndia | #AmazonDeals #PriceDrop</span>
+              </div>
             </div>
           </div>
 
