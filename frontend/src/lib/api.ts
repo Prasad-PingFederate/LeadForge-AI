@@ -205,3 +205,72 @@ export async function fetchActivityFeed(
   }
   return res.json();
 }
+
+export async function fetchDispatchQueue(): Promise<{
+  status: string;
+  date: string;
+  queue_count: number;
+  slots: any[];
+}> {
+  const res = await fetch(`${API_BASE}/deals/dispatch-queue`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch dispatch queue");
+  }
+  return res.json();
+}
+
+export async function markDealSent(payload: {
+  slot_id: string;
+  asin: string;
+  channel?: string;
+  audience?: string;
+  subtag?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/mark-sent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to mark deal as sent");
+  }
+  return res.json();
+}
+
+export async function fetchAudienceCopy(
+  asin: string,
+  channel: string = "whatsapp"
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/${asin}/audience-copy?channel=${channel}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch audience copy");
+  }
+  return res.json();
+}
+
+export async function fetchN8nWorkflowTemplate(): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/n8n-workflow-template`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch n8n workflow template");
+  }
+  return res.json();
+}
+
+export async function dispatchWhatsApp(payload: {
+  asin: string;
+  audience?: string;
+  group_jid?: string;
+  instance_name?: string;
+  custom_message?: string;
+  step_number?: number;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE}/deals/dispatch-whatsapp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to generate WhatsApp dispatch payload");
+  }
+  return res.json();
+}

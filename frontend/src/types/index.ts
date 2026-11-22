@@ -380,3 +380,96 @@ export interface MultiAngleCopyResponse {
     daily_utility: MultiAngleCopyItem;
   };
 }
+
+export interface AudienceVariantItem {
+  audience_key: "homemaker" | "hostel_college" | "office_pro" | "budget_impulse";
+  badge: string;
+  channel: string;
+  subtag: string;
+  affiliate_url: string;
+  message: string;
+  asin: string;
+  price: number;
+  discount_pct: number;
+  savings: number;
+}
+
+export interface AudienceCopyResponse {
+  status: string;
+  asin: string;
+  channel: string;
+  loot_badge: string;
+  loot_score: number;
+  audiences: {
+    homemaker: AudienceVariantItem;
+    hostel_college: AudienceVariantItem;
+    office_pro: AudienceVariantItem;
+    budget_impulse: AudienceVariantItem;
+  };
+}
+
+export interface DispatchQueueSlot {
+  slot_id: string;
+  slot_name: string;
+  timing_ist: string;
+  delay_info: string;
+  asin: string;
+  title: string;
+  category: string;
+  deal_price: number;
+  mrp: number;
+  discount_pct: number;
+  rating: number;
+  review_count: number;
+  commission_rate_percent: number;
+  estimated_commission_rupees: number;
+  loot_score: number;
+  loot_badge: string;
+  is_mega_loot: boolean;
+  quality_verdict: string;
+  why_it_converts: string;
+  unique_subtag: string;
+  canonical_affiliate_url: string;
+  audience_variants_whatsapp: Record<string, AudienceVariantItem>;
+  audience_variants_telegram: Record<string, AudienceVariantItem>;
+  evolution_api_payload: {
+    number: string;
+    text: string;
+    options: {
+      delay: number;
+      presence: string;
+      linkPreview: boolean;
+    };
+  };
+  telegram_payload: {
+    chat_id: string;
+    text: string;
+    parse_mode: string;
+  };
+  is_sent: boolean;
+  dispatched_at?: string | null;
+  sent_channel?: string | null;
+  sent_audience?: string | null;
+}
+
+export interface DispatchQueueResponse {
+  status: string;
+  date: string;
+  queue_count: number;
+  slots: DispatchQueueSlot[];
+}
+
+export interface WhatsAppDispatchResponse {
+  status: string;
+  channel: string;
+  audience: string;
+  asin: string;
+  subtag: string;
+  message_length: number;
+  whatsapp_message: string;
+  evolution_api_payload: Record<string, any>;
+  baileys_payload: Record<string, any>;
+  curl_command: string;
+  anti_ban_warnings: string[];
+  ready_for_production: boolean;
+}

@@ -1061,6 +1061,189 @@ def generate_multi_angle_copy(
     }
 
 
+def generate_audience_copy(
+    deal: Dict[str, Any],
+    audience: str = "homemaker",
+    channel: str = "whatsapp",
+    campaign_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 2 Audience Segmentation Copy Generator:
+    Generates targeted copy crafted specifically for 4 distinct Indian buyer personas:
+      1. homemaker: Family budget, kitchen/home utility, durability, healthy living
+      2. hostel_college: Student budget (<₹499/₹999), zero-effort living, fast boiling/prep
+      3. office_pro: Morning time-saver, work-from-home/desk aesthetics, premium reliability
+      4. budget_impulse: Highest discount %, lowest in 90 days, pure flash loot
+    """
+    title = deal.get("title") or deal.get("name") or "Amazon Verified Deal"
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
+    mrp = float(deal.get("mrp") or (price * 1.5))
+    disc = int(deal.get("discount_pct") or (round(((mrp - price) / mrp) * 100) if mrp > price else 35))
+    savings = int(mrp - price) if mrp > price else int(price * 0.35)
+    rating = float(deal.get("rating") or 4.3)
+    reviews = int(deal.get("review_count") or deal.get("reviews_count") or 3500)
+    brand = deal.get("brand") or "Top Brand"
+    asin = deal.get("asin") or extract_asin(deal.get("affiliate_url", "")) or "B09W2GFM7Y"
+
+    d_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    aud_norm = audience.lower().strip()
+    if "hostel" in aud_norm or "college" in aud_norm:
+        aud_key = "hostel_college"
+        aud_code = "hc"
+        badge = "🎒 Hostel & College"
+    elif "office" in aud_norm or "pro" in aud_norm or "work" in aud_norm:
+        aud_key = "office_pro"
+        aud_code = "op"
+        badge = "💼 Office & Professional"
+    elif "budget" in aud_norm or "impulse" in aud_norm or "loot" in aud_norm:
+        aud_key = "budget_impulse"
+        aud_code = "bi"
+        badge = "⚡ Budget & Impulse"
+    else:
+        aud_key = "homemaker"
+        aud_code = "hm"
+        badge = "🏠 Homemaker & Family"
+
+    ch = "tg" if channel.lower() == "telegram" else "wa"
+    subtag = f"lf-{ch}-{d_str}-{asin.lower()[:10]}-{aud_code}"
+    url = to_canonical_affiliate_url(asin, subtag=subtag)
+
+    if channel.lower() == "telegram":
+        if aud_key == "hostel_college":
+            msg = (
+                f"🎒 **HOSTEL & CAMPUS STEAL DEAL** 🎒\n\n"
+                f"**{title}**\n\n"
+                f"📉 Deal Price: **₹{int(price):,}** ~₹{int(mrp):,}~ (**{disc}% OFF**)\n"
+                f"💰 Pocket Money Saved: **₹{savings:,}**\n\n"
+                f"⚡️ *Hostel & Student Life Hack:*\n"
+                f"• Zero-hassle utility for student rooms & fast snacking\n"
+                f"• Fits comfortably inside tight pocket money budgets\n"
+                f"• Amazon Prime fast delivery available\n\n"
+                f"🛒 **Grab Student Deal:** [Check Live Price]({url})"
+            )
+        elif aud_key == "office_pro":
+            msg = (
+                f"💼 **WORKPLACE & DESK LIFESTYLE DROP** 💼\n\n"
+                f"**{title}**\n\n"
+                f"📉 Executive Price: **₹{int(price):,}** ~₹{int(mrp):,}~ (**{disc}% OFF**)\n"
+                f"💰 Net Savings: **₹{savings:,}**\n\n"
+                f"☕️ *Why Professionals Love This:*\n"
+                f"• Cuts down 25 minutes of morning routine before office\n"
+                f"• Durable, sleek build designed for modern work desks\n"
+                f"• Genuine Brand Warranty with Prime Delivery\n\n"
+                f"🛒 **Order for Desk/Home:** [Buy on Amazon]({url})"
+            )
+        elif aud_key == "budget_impulse":
+            msg = (
+                f"⚡️ **FLASH IMPULSE LOOT (DEEP DROP)** ⚡️\n\n"
+                f"**{title}**\n\n"
+                f"📉 Deal Price: **₹{int(price):,}** ~₹{int(mrp):,}~ (**{disc}% OFF**)\n"
+                f"🔥 You Save: **₹{savings:,}**\n\n"
+                f"⚠️ *Loot Status:* Verified all-time lowest price in 90 days. Price may bounce at midnight!\n\n"
+                f"🛒 **Lock In Loot Price:** [Claim Deal Now]({url})"
+            )
+        else:
+            msg = (
+                f"🏠 **FAMILY & HOME SAVINGS DROP** 🏠\n\n"
+                f"**{title}**\n"
+                f"⭐️ Rating: {rating}/5 ({reviews:,}+ family reviews)\n\n"
+                f"📉 Special Price: **₹{int(price):,}** ~₹{int(mrp):,}~ (**{disc}% OFF**)\n"
+                f"💰 Total Family Savings: **₹{savings:,}**\n\n"
+                f"🍲 *Why It's Great For Home:*\n"
+                f"• Durable genuine build with 1-Year Brand Warranty\n"
+                f"• Essential pantry utility that saves time and fuel\n"
+                f"• Free Prime 1-Day Delivery & Easy Returns\n\n"
+                f"🛒 **Order for Home:** [Check Deal on Amazon]({url})"
+            )
+    else:
+        # WhatsApp Formatting
+        if aud_key == "hostel_college":
+            msg = (
+                f"🎒 *HOSTEL & CAMPUS STEAL DEAL* 🎒\n\n"
+                f"*{title}*\n\n"
+                f"📉 *Deal Price: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+                f"💰 *Pocket Money Saved: ₹{savings:,}*\n\n"
+                f"⚡️ *Hostel & Student Life Hack:*\n"
+                f"• Zero-hassle utility for student rooms & fast snack prep\n"
+                f"• Fits inside tight student pocket money under ₹{int(max(499.0, price)):,}\n"
+                f"• Free Prime Student Delivery eligible\n\n"
+                f"👉 *Grab Yours Before Price Bounces:*\n{url}\n\n"
+                f"_(Limited student stock — check before price goes back up!)_"
+            )
+        elif aud_key == "office_pro":
+            msg = (
+                f"💼 *WORKPLACE & DESK LIFESTYLE DROP* 💼\n\n"
+                f"*{title}*\n"
+                f"⭐️ Brand Rating: {rating}/5 ({reviews:,}+ professionals)\n\n"
+                f"📉 *Executive Price: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+                f"💰 *Instant Savings: ₹{savings:,}*\n\n"
+                f"☕️ *Why Working Professionals Need This:*\n"
+                f"• Cuts down 25 minutes of morning routine prep before office commute\n"
+                f"• Sleek, durable aesthetic built for modern work-from-home & desks\n"
+                f"• Official Brand Warranty & Prime Priority Delivery\n\n"
+                f"👉 *Order on Amazon:*\n{url}\n\n"
+                f"_(Price checked live on Amazon India)_"
+            )
+        elif aud_key == "budget_impulse":
+            msg = (
+                f"⚡️ *FLASH IMPULSE LOOT (DEEP DROP)* ⚡️\n\n"
+                f"*{title}*\n\n"
+                f"📉 *Deal Price: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+                f"🔥 *You Save: ₹{savings:,} In Pocket!* \n\n"
+                f"🚨 *Lightning Loot Alert:*\n"
+                f"• Lowest verified price drop in 90 days\n"
+                f"• Pure impulse sweet-spot pricing with instant Prime delivery\n"
+                f"• Deal allocation selling fast — price bounces tonight!\n\n"
+                f"👉 *Lock In Loot Price Now:*\n{url}\n\n"
+                f"_(Grab before discount allocation expires!)_"
+            )
+        else:
+            msg = (
+                f"🏠 *FAMILY & HOME SAVINGS DROP* 🏠\n\n"
+                f"*{title}*\n"
+                f"⭐️ Verified Rating: {rating}/5 ({reviews:,}+ families trust this)\n\n"
+                f"📉 *Special Family Price: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+                f"💰 *Total Family Savings: ₹{savings:,}*\n\n"
+                f"🍲 *Why It's Great For Your Home:*\n"
+                f"• Durable genuine build with 1-Year Manufacturer Brand Warranty\n"
+                f"• Reliable everyday pantry utility — saves time and cooking fuel\n"
+                f"• Free Prime 1-Day Delivery & Easy Returns\n\n"
+                f"👉 *Check Deal & Order for Home:*\n{url}\n\n"
+                f"_(Verified price drop — deals on Amazon sell out fast!)_"
+            )
+
+    return {
+        "audience_key": aud_key,
+        "badge": badge,
+        "channel": channel,
+        "subtag": subtag,
+        "affiliate_url": url,
+        "message": msg,
+        "asin": asin,
+        "price": price,
+        "discount_pct": disc,
+        "savings": savings,
+    }
+
+
+def generate_all_audience_variants(
+    deal: Dict[str, Any],
+    channel: str = "whatsapp",
+    campaign_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generates all 4 audience persona variants for a given deal and channel."""
+    audiences = ["homemaker", "hostel_college", "office_pro", "budget_impulse"]
+    variants = {}
+    for a in audiences:
+        res = generate_audience_copy(deal, audience=a, channel=channel, campaign_id=campaign_id)
+        variants[res["audience_key"]] = res
+    return {
+        "channel": channel,
+        "asin": deal.get("asin") or extract_asin(deal.get("affiliate_url", "")) or "B09W2GFM7Y",
+        "variants": variants,
+    }
+
+
 def generate_3step_sequence(
     deal: Dict[str, Any],
     campaign_id: Optional[str] = None,

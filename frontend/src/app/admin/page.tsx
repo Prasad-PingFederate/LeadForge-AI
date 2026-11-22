@@ -184,7 +184,14 @@ export default function RevenueDashboard() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/dispatch"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-950 hover:bg-sky-900 border border-sky-700/80 text-xs font-bold text-sky-300 transition-colors shadow-sm"
+            >
+              <span>🚀</span>
+              <span>Open Dispatch Queue</span>
+            </Link>
             <button
               onClick={loadData}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"

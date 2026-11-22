@@ -207,3 +207,21 @@ class DealClick(Base):
         Index("ix_deal_clicks_channel", "channel"),
         Index("ix_deal_clicks_campaign_id", "campaign_id"),
     )
+
+
+class DispatchLog(Base):
+    __tablename__ = "dispatch_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    slot_id: Mapped[str] = mapped_column(String(50), nullable=False)  # s1_morning, s2_evening, s3_scarcity
+    asin: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(50), default="whatsapp", nullable=False)
+    audience: Mapped[str] = mapped_column(String(50), default="homemaker", nullable=False)
+    subtag: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="sent", nullable=False)
+    dispatched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (
+        Index("ix_dispatch_slot_asin", "slot_id", "asin"),
+        Index("ix_dispatch_subtag", "subtag"),
+    )

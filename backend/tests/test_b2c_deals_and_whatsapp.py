@@ -699,3 +699,117 @@ async def test_device_and_app_telemetry_summary():
         assert "goal_progress" in data
         assert data["goal_progress"]["target_commission_inr"] == 1000000.0
         assert "step3_scarcity" in data["clicks_by_step"]
+
+
+@pytest.mark.asyncio
+async def test_generate_audience_copy_and_variants():
+    from app.core.deal_analyzer import generate_audience_copy, generate_all_audience_variants
+
+    deal = {
+        "asin": "B002MPPTB8",
+        "title": "Hawkins Futura Hard Anodised Pressure Cooker 3L",
+        "brand": "Hawkins",
+        "category": "Home & Kitchen",
+        "effective_price": 2499.0,
+        "mrp": 3350.0,
+        "discount_pct": 25,
+        "rating": 4.4,
+        "review_count": 28400,
+    }
+
+    # Test Homemaker variant
+    c_home = generate_audience_copy(deal, audience="homemaker", channel="whatsapp")
+    msg_home = c_home["message"]
+    assert "Kitchen Upgrade" in msg_home or "Pantry" in msg_home or "Family" in msg_home or "Hawkins" in msg_home
+    assert "₹2,499" in msg_home or "2499" in msg_home
+
+    # Test Hostel variant
+    c_hostel = generate_audience_copy(deal, audience="hostel", channel="whatsapp")
+    msg_hostel = c_hostel["message"]
+    assert "Hostel" in msg_hostel or "Jugaad" in msg_hostel or "Roommates" in msg_hostel or "Pocket Money" in msg_hostel
+
+    # Test Office variant
+    c_office = generate_audience_copy(deal, audience="office", channel="whatsapp")
+    msg_office = c_office["message"]
+    assert "Desk" in msg_office or "Commute" in msg_office or "Office" in msg_office or "Working" in msg_office
+
+    # Test Budget variant
+    c_budget = generate_audience_copy(deal, audience="budget", channel="whatsapp")
+    msg_budget = c_budget["message"]
+    assert "PRICE CRASH" in msg_budget or "LOOT" in msg_budget or "DISCOUNT" in msg_budget
+
+    # Test generate_all_audience_variants
+    all_vars = generate_all_audience_variants(deal, channel="whatsapp")
+    assert len(all_vars["variants"]) == 4
+    aud_keys = list(all_vars["variants"].keys())
+    assert "homemaker" in aud_keys
+    assert "hostel_college" in aud_keys
+    assert "office_pro" in aud_keys
+    assert "budget_impulse" in aud_keys
+
+
+@pytest.mark.asyncio
+async def test_dispatch_whatsapp_and_n8n_workflow_template(async_client):
+    # 1. WhatsApp Evolution API payload generator
+    resp_wa = await async_client.post("/api/deals/dispatch-whatsapp", json={
+        "asin": "B002MPPTB8",
+        "step_number": 1,
+        "audience": "homemaker",
+        "group_jid": "120363024849204829@g.us",
+        "instance_name": "BharatBazaro_Main"
+    })
+    assert resp_wa.status_code == 200
+    data_wa = resp_wa.json()
+    assert data_wa["status"] == "prepared"
+    assert "evolution_api_payload" in data_wa
+    assert data_wa["evolution_api_payload"]["number"] == "120363024849204829@g.us"
+    assert "baileys_payload" in data_wa
+    assert "curl_command" in data_wa
+    assert "anti_ban_warnings" in data_wa
+    assert len(data_wa["anti_ban_warnings"]) >= 3
+
+    # 2. n8n Workflow Template JSON
+    resp_n8n = await async_client.get("/api/deals/n8n-workflow-template")
+    assert resp_n8n.status_code == 200
+    data_n8n = resp_n8n.json()
+    assert "workflow" in data_n8n
+    assert data_n8n["workflow"]["name"] == "BharatBazaro Deal Alert Telegram Bot"
+    assert "nodes" in data_n8n["workflow"]
+    node_names = [n["name"] for n in data_n8n["workflow"]["nodes"]]
+    assert "Deal Webhook Trigger" in node_names
+    assert "Telegram Bot Broadcast" in node_names
+
+
+@pytest.mark.asyncio
+async def test_dispatch_queue_and_mark_sent(async_client):
+    # 1. Fetch dispatch queue
+    resp_q = await async_client.get("/api/deals/dispatch-queue")
+    assert resp_q.status_code == 200
+    data_q = resp_q.json()
+    assert "date" in data_q
+    assert "slots" in data_q
+    assert len(data_q["slots"]) == 3
+    slot1 = data_q["slots"][0]
+    assert slot1["slot_id"] == "s1_morning"
+    assert "audience_variants_whatsapp" in slot1
+    assert "audience_variants_telegram" in slot1
+
+    # 2. Mark slot as sent
+    resp_mark = await async_client.post("/api/deals/mark-sent", json={
+        "slot_id": "s1_morning",
+        "asin": slot1["asin"],
+        "channel": "whatsapp",
+        "audience": "homemaker",
+        "subtag": slot1["unique_subtag"]
+    })
+    assert resp_mark.status_code == 200
+    data_mark = resp_mark.json()
+    assert data_mark["success"] is True
+    assert data_mark["subtag"] == slot1["unique_subtag"]
+    assert data_mark["channel"] == "whatsapp"
+
+    # 3. Fetch dispatch queue again and verify marked sent
+    resp_q2 = await async_client.get("/api/deals/dispatch-queue")
+    data_q2 = resp_q2.json()
+    assert data_q2["slots"][0]["is_sent"] is True
+

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 from app.main import app
 from app.db.base import Base
+from app.db import models  # Ensure all SQLAlchemy models are registered
 from app.db.session import get_db
 
 # In-memory async SQLite engine for testing

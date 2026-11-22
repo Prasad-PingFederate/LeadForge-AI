@@ -18,7 +18,15 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-4 sm:gap-6 text-sm">
+        <div className="flex items-center gap-3 sm:gap-4 text-sm">
+          <Link
+            href="/dispatch"
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 hover:bg-sky-500/20 transition-all shadow-sm"
+          >
+            <span>🚀</span>
+            <span>Dispatch Queue</span>
+          </Link>
+
           <Link
             href="/admin"
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-all shadow-sm"
