@@ -4,7 +4,9 @@ from typing import TypedDict, List, Dict, Any, Optional
 class LeadForgeState(TypedDict):
     campaign_id: str
     target_url: str
+    campaign_type: str
     description: str
+    deal_data: Optional[Dict[str, Any]]
     icp_data: Dict[str, Any]
     competitors: List[Dict[str, Any]]
     strategies: List[Dict[str, Any]]

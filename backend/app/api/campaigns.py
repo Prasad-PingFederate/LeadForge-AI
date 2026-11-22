@@ -23,13 +23,13 @@ router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 ACTIVE_CAMPAIGN_PROGRESS: dict = {}
 
 
-async def run_campaign_workflow(campaign_id: str, target_url: str, description: str):
+async def run_campaign_workflow(campaign_id: str, target_url: str, description: str, campaign_type: str = "b2b"):
     """Executes the full multi-agent LangGraph pipeline and persists results into PostgreSQL/SQLite."""
-    logger.info(f"Starting LangGraph workflow for campaign {campaign_id}")
+    logger.info(f"Starting LangGraph workflow for campaign {campaign_id} (mode: {campaign_type})")
     ACTIVE_CAMPAIGN_PROGRESS[campaign_id] = {
         "status": "profiling",
         "progress_percent": 10,
-        "logs": [f"🚀 Initialized Autonomous Agent pipeline for {target_url}"],
+        "logs": [f"🚀 Initialized Autonomous Agent pipeline for {target_url} (mode: {campaign_type})"],
         "completed": False,
         "error": None,
     }
@@ -37,7 +37,9 @@ async def run_campaign_workflow(campaign_id: str, target_url: str, description: 
     initial_state: LeadForgeState = {
         "campaign_id": campaign_id,
         "target_url": target_url,
+        "campaign_type": campaign_type,
         "description": description or "",
+        "deal_data": None,
         "icp_data": {},
         "competitors": [],
         "strategies": [],
@@ -46,7 +48,7 @@ async def run_campaign_workflow(campaign_id: str, target_url: str, description: 
         "outreach_drafts": [],
         "current_step": "started",
         "progress_percent": 10,
-        "logs": [f"🚀 Initialized Autonomous Agent pipeline for {target_url}"],
+        "logs": [f"🚀 Initialized Autonomous Agent pipeline for {target_url} ({campaign_type})"],
         "error": None,
     }
 
@@ -68,8 +70,11 @@ async def run_campaign_workflow(campaign_id: str, target_url: str, description: 
             if not campaign:
                 return
 
+            icp_result = final_state.get("icp_data", {})
             campaign.status = "completed"
-            campaign.icp_json = json.dumps(final_state.get("icp_data", {}))
+            campaign.icp_json = json.dumps(icp_result)
+            if "deal_metadata" in icp_result:
+                campaign.deal_metadata_json = json.dumps(icp_result["deal_metadata"])
 
             # Save Competitors
             for comp in final_state.get("competitors", []):
@@ -145,6 +150,9 @@ async def run_campaign_workflow(campaign_id: str, target_url: str, description: 
                         body_step3=draft.get("body_step3"),
                         social_reply=draft.get("social_reply"),
                         linkedin_dm=draft.get("linkedin_dm"),
+                        whatsapp_message=draft.get("whatsapp_message"),
+                        telegram_message=draft.get("telegram_message"),
+                        deal_affiliate_url=draft.get("deal_affiliate_url"),
                         status="draft",
                     )
                     session.add(msg)
@@ -181,6 +189,7 @@ async def create_campaign(
     campaign = Campaign(
         name=name,
         target_url=url,
+        campaign_type=payload.campaign_type,
         description=payload.description or "",
         status="profiling",
     )
@@ -194,6 +203,7 @@ async def create_campaign(
         campaign.id,
         campaign.target_url,
         campaign.description or "",
+        campaign.campaign_type,
     )
 
     return campaign

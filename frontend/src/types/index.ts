@@ -8,6 +8,12 @@ export interface ICPData {
   core_pain_points: string[];
   intent_search_queries: string[];
   negative_keywords?: string[];
+  deal_metadata?: {
+    asin?: string;
+    canonical_affiliate_url?: string;
+    commission_rate_percent?: number;
+    is_impulse_sweet_spot?: boolean;
+  };
 }
 
 export interface Competitor {
@@ -88,6 +94,9 @@ export interface OutreachMessage {
   body_step3?: string;
   social_reply?: string;
   linkedin_dm?: string;
+  whatsapp_message?: string;
+  telegram_message?: string;
+  deal_affiliate_url?: string;
   status: "draft" | "approved" | "sent" | "sent_dry_run" | "replied";
   reply_sentiment?: string;
   sent_at?: string;
@@ -106,8 +115,10 @@ export interface Campaign {
   id: string;
   name: string;
   target_url: string;
+  campaign_type: "b2b" | "b2c_deals";
   description?: string;
   status: "pending" | "profiling" | "competitor_analysis" | "hunting" | "enriching" | "completed" | "failed";
+  deal_metadata_json?: string;
   created_at?: string;
 }
 

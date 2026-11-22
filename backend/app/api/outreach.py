@@ -65,6 +65,9 @@ async def list_campaign_outreach(
             "body_step3": m.body_step3,
             "social_reply": m.social_reply,
             "linkedin_dm": m.linkedin_dm,
+            "whatsapp_message": m.whatsapp_message,
+            "telegram_message": m.telegram_message,
+            "deal_affiliate_url": m.deal_affiliate_url,
             "status": m.status,
             "approved_at": m.approved_at,
             "sent_at": m.sent_at,
@@ -96,6 +99,12 @@ async def update_outreach_message(
         msg.social_reply = payload.social_reply
     if payload.linkedin_dm is not None:
         msg.linkedin_dm = payload.linkedin_dm
+    if payload.whatsapp_message is not None:
+        msg.whatsapp_message = payload.whatsapp_message
+    if payload.telegram_message is not None:
+        msg.telegram_message = payload.telegram_message
+    if payload.deal_affiliate_url is not None:
+        msg.deal_affiliate_url = payload.deal_affiliate_url
     if payload.status is not None:
         msg.status = payload.status
         if payload.status == "approved" and not msg.approved_at:

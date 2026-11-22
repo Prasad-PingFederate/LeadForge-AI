@@ -13,6 +13,10 @@ import {
   RotateCcw,
   Sparkles,
   ExternalLink,
+  MessageCircle,
+  Copy,
+  Check,
+  Share2,
 } from "lucide-react";
 import { updateOutreach, dispatchOutreach, postReplyFeedback } from "@/lib/api";
 
@@ -22,15 +26,21 @@ interface OutreachCardProps {
 }
 
 export default function OutreachCard({ message, onRefresh }: OutreachCardProps) {
-  const [activeTab, setActiveTab] = useState<"step1" | "step2" | "step3" | "linkedin" | "social">("step1");
+  const [activeTab, setActiveTab] = useState<
+    "whatsapp" | "telegram" | "step1" | "step2" | "step3" | "linkedin" | "social"
+  >(message.whatsapp_message ? "whatsapp" : "step1");
+
   const [subject, setSubject] = useState(message.subject || "");
   const [step1, setStep1] = useState(message.body_step1 || "");
   const [step2, setStep2] = useState(message.body_step2 || "");
   const [step3, setStep3] = useState(message.body_step3 || "");
   const [linkedinDm, setLinkedinDm] = useState(message.linkedin_dm || "");
   const [socialReply, setSocialReply] = useState(message.social_reply || "");
+  const [whatsappMsg, setWhatsappMsg] = useState(message.whatsapp_message || "");
+  const [telegramMsg, setTelegramMsg] = useState(message.telegram_message || "");
   const [status, setStatus] = useState<string>(message.status || "draft");
 
+  const [copied, setCopied] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
 
@@ -38,6 +48,25 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
   const [isReplyModalOpen, setIsReplyModalOpen] = useState(false);
   const [simulatedReply, setSimulatedReply] = useState("");
   const [replyResult, setReplyResult] = useState<any>(null);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleOpenWhatsApp = () => {
+    const textToShare = whatsappMsg || step1;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textToShare)}`;
+    window.open(url, "_blank");
+  };
+
+  const handleOpenTelegram = () => {
+    const textToShare = telegramMsg || step1;
+    const affUrl = message.deal_affiliate_url || "";
+    const url = `https://t.me/share/url?url=${encodeURIComponent(affUrl)}&text=${encodeURIComponent(textToShare)}`;
+    window.open(url, "_blank");
+  };
 
   const handleSave = async () => {
     try {
@@ -48,6 +77,8 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         body_step3: step3,
         linkedin_dm: linkedinDm,
         social_reply: socialReply,
+        whatsapp_message: whatsappMsg,
+        telegram_message: telegramMsg,
       });
       setSendResult("✓ Sequence edits saved!");
       setTimeout(() => setSendResult(null), 3000);
@@ -114,9 +145,14 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                 {message.overall_score}/100 Fit
               </span>
             )}
+            {message.deal_affiliate_url && (
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
+                tag=dammaiprasad-21
+              </span>
+            )}
           </div>
           <span className="text-xs text-slate-400 font-mono mt-0.5 block">
-            {message.contact_name || "Decision Maker"} &lt;{message.contact_email || "unverified"}&gt;
+            {message.contact_name || "Community Member"} &lt;{message.contact_email || "verified prospect"}&gt;
           </span>
         </div>
 
@@ -151,34 +187,61 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 bg-slate-950/30 text-xs font-medium px-4">
+      <div className="flex border-b border-slate-800 bg-slate-950/30 text-xs font-medium px-4 overflow-x-auto">
+        {/* WhatsApp Tab */}
+        <button
+          onClick={() => setActiveTab("whatsapp")}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === "whatsapp"
+              ? "border-emerald-500 text-emerald-400 font-bold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+          <span>WhatsApp Broadcast (VIP)</span>
+        </button>
+
+        {/* Telegram Tab */}
+        <button
+          onClick={() => setActiveTab("telegram")}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            activeTab === "telegram"
+              ? "border-sky-500 text-sky-400 font-bold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Send className="w-3.5 h-3.5 text-sky-400" />
+          <span>Telegram Alert</span>
+        </button>
+
+        {/* Email Tabs */}
         <button
           onClick={() => setActiveTab("step1")}
-          className={`py-2.5 px-3 border-b-2 transition-colors ${
-            activeTab === "step1" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "step1" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Email 1: Hook
         </button>
         <button
           onClick={() => setActiveTab("step2")}
-          className={`py-2.5 px-3 border-b-2 transition-colors ${
-            activeTab === "step2" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "step2" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Email 2: Value Proof
         </button>
         <button
           onClick={() => setActiveTab("step3")}
-          className={`py-2.5 px-3 border-b-2 transition-colors ${
-            activeTab === "step3" ? "border-emerald-500 text-emerald-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
+          className={`py-2.5 px-3 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "step3" ? "border-blue-500 text-blue-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
           Email 3: Breakup
         </button>
         <button
           onClick={() => setActiveTab("linkedin")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === "linkedin" ? "border-sky-500 text-sky-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -187,7 +250,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         </button>
         <button
           onClick={() => setActiveTab("social")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
             activeTab === "social" ? "border-orange-500 text-orange-400 font-bold" : "border-transparent text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -196,7 +259,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         </button>
       </div>
 
-      {/* Sequence Editor Body */}
+      {/* Editor Body */}
       <div className="p-4 space-y-3">
         {activeTab.startsWith("step") && (
           <div>
@@ -213,22 +276,82 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         )}
 
         <div>
-          <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-            {activeTab === "step1"
-              ? "Cold Email Step 1 (Signal-Personalized Hook & Low-Friction Ask)"
-              : activeTab === "step2"
-              ? "Cold Email Step 2 (Customer Proof Point)"
-              : activeTab === "step3"
-              ? "Cold Email Step 3 (Respectful Breakup)"
-              : activeTab === "linkedin"
-              ? "LinkedIn Connection Note / InMail (< 45 words)"
-              : "Helpful Non-Salesy Social Reply (HN / Reddit)"}
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              {activeTab === "whatsapp"
+                ? "WhatsApp VIP Broadcast (Bold formatting, Rupee savings & Universal affiliate tag)"
+                : activeTab === "telegram"
+                ? "Telegram Loot Deal Alert (Markdown formatted with Instant Buy link)"
+                : activeTab === "step1"
+                ? "Cold Email Step 1 (Hook & CTA)"
+                : activeTab === "step2"
+                ? "Cold Email Step 2 (Customer Proof)"
+                : activeTab === "step3"
+                ? "Cold Email Step 3 (Breakup)"
+                : activeTab === "linkedin"
+                ? "LinkedIn Connection Note / DM"
+                : "Helpful Community Reply"}
+            </label>
+
+            {/* Quick 1-Click Copy / Share for WhatsApp & Telegram */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const content =
+                    activeTab === "whatsapp"
+                      ? whatsappMsg
+                      : activeTab === "telegram"
+                      ? telegramMsg
+                      : activeTab === "step1"
+                      ? step1
+                      : activeTab === "step2"
+                      ? step2
+                      : activeTab === "step3"
+                      ? step3
+                      : activeTab === "linkedin"
+                      ? linkedinDm
+                      : socialReply;
+                  handleCopy(content);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? "Copied!" : "Copy Post"}</span>
+              </button>
+
+              {activeTab === "whatsapp" && (
+                <button
+                  type="button"
+                  onClick={handleOpenWhatsApp}
+                  className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Send in WhatsApp Web ↗</span>
+                </button>
+              )}
+
+              {activeTab === "telegram" && (
+                <button
+                  type="button"
+                  onClick={handleOpenTelegram}
+                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Post to Telegram ↗</span>
+                </button>
+              )}
+            </div>
+          </div>
 
           <textarea
-            rows={5}
+            rows={7}
             value={
-              activeTab === "step1"
+              activeTab === "whatsapp"
+                ? whatsappMsg
+                : activeTab === "telegram"
+                ? telegramMsg
+                : activeTab === "step1"
                 ? step1
                 : activeTab === "step2"
                 ? step2
@@ -240,13 +363,15 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
             }
             onChange={(e) => {
               const val = e.target.value;
-              if (activeTab === "step1") setStep1(val);
+              if (activeTab === "whatsapp") setWhatsappMsg(val);
+              else if (activeTab === "telegram") setTelegramMsg(val);
+              else if (activeTab === "step1") setStep1(val);
               else if (activeTab === "step2") setStep2(val);
               else if (activeTab === "step3") setStep3(val);
               else if (activeTab === "linkedin") setLinkedinDm(val);
               else setSocialReply(val);
             }}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-sans leading-relaxed focus:outline-none focus:border-emerald-500"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-sans leading-relaxed focus:outline-none focus:border-emerald-500 font-mono"
           />
         </div>
 
@@ -271,7 +396,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
             onClick={handleSave}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
           >
-            Save Draft
+            Save Edits
           </button>
           <button
             onClick={handleApprove}
@@ -282,6 +407,15 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Quick WhatsApp broadcast trigger */}
+          <button
+            onClick={handleOpenWhatsApp}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-slate-950 transition-colors flex items-center gap-1.5"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Broadcast to WhatsApp</span>
+          </button>
+
           {/* Simulate reply test */}
           <button
             onClick={() => setIsReplyModalOpen(true)}
@@ -289,7 +423,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
             title="Simulate inbound prospect reply to test self-learning loop"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Test Reply</span>
+            <span>Test Feedback Loop</span>
           </button>
 
           {/* Dry-run dispatch */}
@@ -306,7 +440,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
           <button
             disabled={isSending}
             onClick={() => handleDispatch(false)}
-            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5"
           >
             <Send className="w-3 h-3" />
             <span>Send Live</span>

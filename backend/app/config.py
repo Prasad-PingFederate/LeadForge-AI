@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,14 +13,18 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./leadforge.db"
     redis_url: str = "redis://localhost:6379/0"
 
-    # LLM Settings (provider-agnostic)
-    llm_provider: str = "openai"  # "openai" | "anthropic" | "gemini" | "mock"
+    # LLM Settings (provider-agnostic, auto-cascades to free tiers)
+    llm_provider: str = "auto"  # "auto" | "gemini" | "groq" | "openrouter" | "openai" | "anthropic" | "mock"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "google/gemini-2.0-flash-exp:free"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-5-sonnet-20241022"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-1.5-flash"
 
     # Search & Intent Connectors
     serper_api_key: str = ""
@@ -42,6 +46,13 @@ class Settings(BaseSettings):
     daily_send_cap: int = 50
     min_interval_seconds: int = 45
     max_interval_seconds: int = 180
+
+    # BharatBazaro & B2C E-Commerce Deal Settings
+    amazon_affiliate_tag: str = "dammaiprasad-21"
+    bharatbazaro_live_deals_url: str = "https://raw.githubusercontent.com/Prasad-PingFederate/bharatbazaro/main/data/live_deals.json"
+
+    # Cache & Rate Limiting
+    cache_ttl_seconds: int = 86400  # 24 hour cache for search queries
 
     # Server & Security
     backend_host: str = "0.0.0.0"

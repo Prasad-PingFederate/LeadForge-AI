@@ -35,14 +35,17 @@ class HunterAgent:
                 except Exception:
                     queries = [queries]
 
-            logger.info(f"Hunter executing strategy '{title}' on channel '{channel}'")
+            weight = float(strat.get("conversion_weight", 1.0))
+            # Self-learning dynamic limit adjustment
+            adjusted_limit = max(2, int(round(limit_per_strategy * weight)))
+            logger.info(f"Hunter executing strategy '{title}' on channel '{channel}' (weight: {weight:.2f}x, limit: {adjusted_limit})")
 
             for query in queries[:2]:
                 found_leads = []
-                if channel in ["reddit", "hackernews"] or "intent" in title.lower() or "social" in title.lower():
-                    found_leads = await intent_social_connector.search(query, limit=limit_per_strategy)
+                if channel in ["reddit", "hackernews", "whatsapp", "telegram", "social"] or "intent" in title.lower() or "deal" in title.lower():
+                    found_leads = await intent_social_connector.search(query, limit=adjusted_limit)
                 else:
-                    found_leads = await b2b_discovery_connector.search(query, limit=limit_per_strategy)
+                    found_leads = await b2b_discovery_connector.search(query, limit=adjusted_limit)
 
                 for item in found_leads:
                     # Attach strategy attribution

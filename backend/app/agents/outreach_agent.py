@@ -2,6 +2,11 @@ import logging
 from typing import Dict, Any, Optional
 
 from app.core.llm import llm_client
+from app.core.deal_analyzer import (
+    format_whatsapp_deal_post,
+    format_telegram_deal_post,
+    to_canonical_affiliate_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +43,8 @@ class OutreachAgent:
         self,
         lead: Dict[str, Any],
         icp_data: Optional[Dict[str, Any]] = None,
-        displacement_angle: Optional[str] = None
+        displacement_angle: Optional[str] = None,
+        campaign_type: str = "b2b",
     ) -> Dict[str, Any]:
         contact_name = lead.get("contact_name") or "there"
         company_name = lead.get("company_name", "your team")
@@ -49,6 +55,7 @@ class OutreachAgent:
         icp = icp_data or {}
         product_name = icp.get("product_name", "our solution")
         value_prop = icp.get("value_proposition", "modern developer-first workflow automation")
+        is_deal_mode = campaign_type == "b2c_deals" or "deal_metadata" in icp
 
         prompt = (
             f"Target Contact: {contact_name} ({contact_role} at {company_name})\n"
@@ -57,43 +64,47 @@ class OutreachAgent:
             f"Our Product: {product_name}\n"
             f"Our Core Value Proposition: {value_prop}\n"
             f"Competitor Displacement Angle: {displacement_angle or 'Save 50% on seat costs with zero latency.'}\n"
+            f"Mode: {'B2C E-Commerce Deal (BharatBazaro)' if is_deal_mode else 'B2B Enterprise Lead Gen'}\n"
         )
 
-        result = await llm_client.generate_json(OUTREACH_SYSTEM_PROMPT, prompt)
+        draft = await llm_client.generate_json(OUTREACH_SYSTEM_PROMPT, prompt)
 
-        # Ensure placeholders are formatted
-        formatted_result = {
-            "channel": "email",
-            "subject": result.get("subject", f"Quick question regarding {company_name}'s stack").replace("{name}", contact_name),
-            "body_step1": (result.get("body_step1") or (
-                f"Hi {contact_name},\n\n"
-                f"Saw your recent team discussion regarding scaling constraints with your current tool. "
-                f"We built {product_name} to provide a modern, high-speed alternative with zero per-seat markups.\n\n"
-                f"Would you be open to a 5-min look this week?\n\n"
-                f"Best,\nAlex"
-            )).replace("{name}", contact_name).replace("{contact_name}", contact_name),
-            "body_step2": (result.get("body_step2") or (
-                f"Hi {contact_name},\n\n"
-                f"Following up briefly—teams like Acme switched over last quarter and cut overhead by 45%. "
-                f"Happy to share a 2-min demo if relevant to {company_name}'s roadmap."
-            )).replace("{name}", contact_name).replace("{contact_name}", contact_name),
-            "body_step3": (result.get("body_step3") or (
-                f"Hi {contact_name},\n\n"
-                f"Assuming this isn't a priority right now, so I'll stop following up. "
-                f"If you ever hit scaling roadblocks down the line, feel free to reach out anytime."
-            )).replace("{name}", contact_name).replace("{contact_name}", contact_name),
-            "linkedin_dm": (result.get("linkedin_dm") or (
-                f"Hey {contact_name}, noticed your focus on scaling productivity at {company_name}. "
-                f"We built a modern alternative with zero seat minimums. Worth a quick connection?"
-            )).replace("{name}", contact_name).replace("{contact_name}", contact_name),
-            "social_reply": (result.get("social_reply") or (
-                f"If you're still looking for an alternative that avoids per-seat penalties, "
-                f"check out {product_name}. Happy to answer any technical questions!"
-            )),
-            "status": "draft",
-        }
+        # Fallback values if LLM skipped fields
+        if not draft.get("subject"):
+            draft["subject"] = f"🔥 Verified Price Drop: {product_name[:30]}" if is_deal_mode else "Quick question on your workflow"
+        if not draft.get("body_step1"):
+            draft["body_step1"] = f"Hi {contact_name},\n\nSaw your team discussion regarding {intent_snippet[:50]}..."
+        if not draft.get("body_step2"):
+            draft["body_step2"] = f"Hi {contact_name},\n\nFollowing up briefly with more details on {product_name}."
+        if not draft.get("body_step3"):
+            draft["body_step3"] = f"Hi {contact_name},\n\nAssuming this isn't a priority right now, so I'll stop following up."
+        if not draft.get("linkedin_dm"):
+            draft["linkedin_dm"] = f"Hey {contact_name}, noticed your focus on {product_name}. Worth a quick connection?"
+        if not draft.get("social_reply"):
+            draft["social_reply"] = f"If you're looking for an alternative, check out {product_name}."
 
-        return formatted_result
+        # Generate WhatsApp Broadcast and Telegram Alert messages
+        asin = icp.get("deal_metadata", {}).get("asin", "B09W2GFM7Y")
+        deal_url = to_canonical_affiliate_url(asin, subtag="lf-outreach")
+
+        draft["deal_affiliate_url"] = deal_url
+        draft["whatsapp_message"] = format_whatsapp_deal_post(
+            title=product_name,
+            deal_price=599.0,
+            mrp=1499.0,
+            asin=asin,
+            subtag="lf-wa",
+        )
+        draft["telegram_message"] = format_telegram_deal_post(
+            title=product_name,
+            deal_price=599.0,
+            mrp=1499.0,
+            asin=asin,
+            subtag="lf-tg",
+        )
+
+        draft["channel"] = "whatsapp" if is_deal_mode else "email"
+        return draft
 
 
 outreach_agent = OutreachAgent()

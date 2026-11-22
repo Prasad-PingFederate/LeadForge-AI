@@ -53,8 +53,8 @@ def compute_lead_score(
     platform = (intent_platform or "").lower()
     snippet = (intent_snippet or "").lower()
 
-    if platform in ["reddit", "hackernews"]:
-        # Active buyer publicly seeking alternatives or asking for tool recommendations
+    if platform in ["reddit", "hackernews", "telegram"]:
+        # Active buyer publicly seeking alternatives or asking for recommendations
         intent_score = 35
     elif platform in ["web_audit", "website_auditor"]:
         intent_score = 25
@@ -63,8 +63,8 @@ def compute_lead_score(
     else:
         intent_score = 18
 
-    # Bonus for competitor switching keywords
-    if any(k in snippet for k in ["alternative", "switch", "replace", "cancel", "expensive", "slow", "frustrated", "recommend"]):
+    # Bonus for competitor switching keywords or deal intent
+    if any(k in snippet for k in ["alternative", "switch", "replace", "cancel", "expensive", "slow", "frustrated", "recommend", "deal", "price drop", "discount"]):
         intent_score = min(35, intent_score + 5)
 
     # ── 3. CONTACT VERIFICATION SCORE (0 - 25) ─────────────────────────────────
@@ -102,7 +102,7 @@ def compute_lead_score(
 
     # ── 4. 1-SENTENCE "WHY THIS LEAD" EVIDENCE STRING ──────────────────────────
     role_desc = contact_role if contact_role else "Decision-maker"
-    if platform in ["reddit", "hackernews"]:
+    if platform in ["reddit", "hackernews", "telegram"]:
         why_this_lead = (
             f"{role_desc} at {company_name} actively asked about workflow alternatives on {intent_platform.capitalize()} "
             f"with verified business domain and {email_status} contact."

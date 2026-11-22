@@ -50,7 +50,14 @@ Enter any SaaS, B2B tool, or product URL (e.g., `https://cal.com`, `https://post
   - `b2b_discovery.py`: Real target companies via Serper / Tavily / Brave / Google Places.
   - `website_auditor.py`: Async crawl of homepage/about/contact pages to extract verified public emails, social URLs, and tech signals.
   - `email_verifier.py`: Multi-stage verification (Format + Disposable domain blocklist + Live DNS MX lookup + API check).
-- **LLM Abstraction:** Provider-agnostic engine supporting OpenAI, Anthropic, Gemini, or built-in heuristic fallback when offline.
+- **LLM Abstraction:** Provider-agnostic engine supporting:
+  - **Auto-Cascade & Free Tiers:** Google Gemini (`gemini-1.5-flash`), Groq (`llama-3.3-70b-versatile`), and OpenRouter Free models.
+  - **Zero-Key Heuristic Mode:** Built-in deterministic heuristic engine with thread-safe TTL caching (`TTLCache`) so the entire platform runs 100% offline without any paid API keys.
+  - **Commercial Providers:** OpenAI (`gpt-4o-mini`) and Anthropic Claude.
+- **B2C Deal Promotion Mode (BharatBazaro & Amazon India):**
+  - Instant ASIN extraction and canonical universal affiliate link formatting (`tag=dammaiprasad-21`, `linkCode=ll1`, `ascsubtag`).
+  - Automated category commission calculation (Home & Kitchen 9%, Small Appliances 7%, Beauty 8%, 0% smartphone filter).
+  - WhatsApp VIP Deal Broadcast & Telegram Markdown alert generation with 1-click Web dispatch buttons.
 
 ---
 

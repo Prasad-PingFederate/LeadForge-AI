@@ -4,7 +4,11 @@ from typing import Dict, Any
 
 from app.core.crawler import crawl_url
 from app.core.llm import llm_client
-from app.schemas.campaign import ICPData
+from app.core.deal_analyzer import (
+    extract_asin,
+    to_canonical_affiliate_url,
+    compute_commission_estimate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,43 +39,95 @@ Return a JSON object matching this schema:
 }
 """
 
+DEAL_PROFILER_SYSTEM_PROMPT = """
+You are an expert E-Commerce Deal & Affiliate Conversion Architect for the Indian market (BharatBazaro / Amazon India).
+Analyze the provided product deal crawl data, pricing, and category.
+Extract a structured Deal Buyer Profile optimized for high-conversion WhatsApp & Telegram broadcasts.
+
+Return a JSON object matching this schema:
+{
+  "product_name": "Title of the deal item",
+  "category": "Home & Kitchen / Small Appliances / Personal Care",
+  "value_proposition": "All-time low price drop under ₹999 with 1-day Prime delivery",
+  "target_roles": ["Bargain Hunters", "Kitchen & Home Shoppers", "Impulse Buyers", "Prime Members"],
+  "target_industries": ["B2C E-Commerce", "Indian Households", "Deal Seekers"],
+  "company_size_range": "Individual Consumers",
+  "core_pain_points": [
+    "Paying full retail MRP without coupon tracking",
+    "Missing limited-time lightning flash sales",
+    "Unreliable quality on cheap local marketplace knockoffs"
+  ],
+  "intent_search_queries": [
+    "site:reddit.com/r/dealsforindia recommend kettle",
+    "telegram deal alert amazon loot",
+    "air fryer price drop deal india"
+  ],
+  "negative_keywords": ["0% commission mobile", "used", "refurbished"]
+}
+"""
+
 
 class ProfilerAgent:
-    """Crawls user URL, understands product value proposition, and builds structured ICP."""
+    """Crawls user URL, understands product value proposition, and builds structured ICP or B2C Deal Profile."""
 
-    async def profile_product(self, url: str, user_description: str = "") -> Dict[str, Any]:
-        logger.info(f"Profiling product from URL: {url}")
-        
-        # 1. Crawl the landing page
+    async def profile_product(
+        self,
+        url: str,
+        user_description: str = "",
+        campaign_type: str = "b2b",
+    ) -> Dict[str, Any]:
+        logger.info(f"Profiling target: {url} (mode: {campaign_type})")
+
+        is_deal_mode = (
+            campaign_type == "b2c_deals"
+            or any(d in url.lower() for d in ["amazon.in", "amzn.in", "amzn.to", "bharatbazaro", "flipkart"])
+            or any(k in user_description.lower() for k in ["deal", "discount", "loot", "impulse", "affiliate", "mrp"])
+        )
+
+        # 1. Crawl the landing page or deal page
         crawl_data = await crawl_url(url)
 
-        # 2. Prepare context for LLM
+        # 2. Extract deal metadata if Amazon or BharatBazaro
+        asin = extract_asin(url) or extract_asin(crawl_data.get("content_text", ""))
+        canonical_url = to_canonical_affiliate_url(url, subtag="leadforge-profile")
+
         prompt = (
+            f"Task: Extract Ideal Customer Profile (ICP)\n"
             f"Target URL: {url}\n"
-            f"User Description/Context: {user_description}\n\n"
+            f"Mode: {'B2C E-Commerce Deal (BharatBazaro)' if is_deal_mode else 'B2B Enterprise Lead Gen'}\n"
+            f"User Context: {user_description}\n\n"
             f"Website Title: {crawl_data.get('title')}\n"
             f"Meta Description: {crawl_data.get('meta_description')}\n"
             f"Headings: {', '.join(crawl_data.get('headings', []))}\n\n"
-            f"Page Content Snippet:\n{crawl_data.get('content_text', '')[:2500]}"
+            f"Page Snippet:\n{crawl_data.get('content_text', '')[:2500]}"
         )
 
-        # 3. Generate structured ICP
-        icp_dict = await llm_client.generate_json(PROFILER_SYSTEM_PROMPT, prompt)
+        sys_prompt = DEAL_PROFILER_SYSTEM_PROMPT if is_deal_mode else PROFILER_SYSTEM_PROMPT
+        icp_dict = await llm_client.generate_json(sys_prompt, prompt)
 
-        # Ensure required fields exist with fallbacks
+        # Fallback fields
         if not icp_dict.get("product_name"):
-            domain = crawl_data.get("domain", "SaaS Platform")
-            icp_dict["product_name"] = domain.split(".")[0].capitalize()
-        if not icp_dict.get("target_roles"):
-            icp_dict["target_roles"] = ["Head of Product", "VP of Engineering", "CTO", "Founder"]
-        if not icp_dict.get("target_industries"):
-            icp_dict["target_industries"] = ["B2B SaaS", "Tech", "Fintech", "Operations"]
-        if not icp_dict.get("intent_search_queries"):
-            icp_dict["intent_search_queries"] = [
-                f"alternative to {icp_dict['product_name'].lower()} competitors",
-                "recommend modern workflow tool",
-                "frustrated with legacy pricing",
-            ]
+            title = crawl_data.get("title") or crawl_data.get("domain", "Product")
+            icp_dict["product_name"] = title.split("-")[0].split("|")[0].strip()
+
+        if is_deal_mode:
+            category = icp_dict.get("category", "Home & Kitchen")
+            comm_info = compute_commission_estimate(category, 599.0)
+            icp_dict["deal_metadata"] = {
+                "asin": asin or "B09W2GFM7Y",
+                "canonical_affiliate_url": canonical_url,
+                "commission_rate_percent": comm_info["commission_rate_percent"],
+                "is_impulse_sweet_spot": comm_info["is_impulse_sweet_spot"],
+            }
+            if not icp_dict.get("target_roles"):
+                icp_dict["target_roles"] = ["Budget Shoppers", "Home & Kitchen Buyers", "Deal Seekers"]
+            if not icp_dict.get("target_industries"):
+                icp_dict["target_industries"] = ["B2C E-Commerce", "Impulse Consumers"]
+        else:
+            if not icp_dict.get("target_roles"):
+                icp_dict["target_roles"] = ["Head of Product", "VP of Engineering", "CTO", "Founder"]
+            if not icp_dict.get("target_industries"):
+                icp_dict["target_industries"] = ["B2B SaaS", "Tech", "Operations"]
 
         return icp_dict
 

@@ -62,6 +62,42 @@ export default function CampaignStrategyPage({ params }: { params: Promise<{ id:
         {/* Live SSE Stream Widget */}
         <ProgressStream campaignId={campaign.id} onCompleted={loadData} />
 
+        {/* B2C Deal Mode Highlight Box */}
+        {(campaign.campaign_type === "b2c_deals" || icp?.deal_metadata) && (
+          <div className="bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-800/60 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-800/80">
+                  🔥 BharatBazaro Deal Campaign Active
+                </span>
+                <span className="font-mono text-xs text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">
+                  tag=dammaiprasad-21
+                </span>
+              </div>
+              <h3 className="font-bold text-slate-100 text-base mt-1">{icp?.product_name || "Live Deal Item"}</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Targeting high-intent Indian buyer communities on WhatsApp VIP, Telegram & r/dealsforindia.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono text-xs">
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase">Est. Commission</span>
+                <span className="font-bold text-emerald-400 text-sm">
+                  {icp?.deal_metadata?.commission_rate_percent || 9.0}%
+                </span>
+              </div>
+              <div className="h-8 w-px bg-slate-800" />
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase">Target ASIN</span>
+                <span className="font-bold text-slate-200 text-sm">
+                  {icp?.deal_metadata?.asin || "B09W2GFM7Y"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Structured ICP Profile Section */}
         {icp && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">

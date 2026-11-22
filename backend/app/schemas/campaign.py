@@ -5,8 +5,9 @@ from pydantic import BaseModel, Field, HttpUrl
 
 class CampaignCreate(BaseModel):
     name: Optional[str] = None
-    target_url: str = Field(..., description="Target product website URL")
-    description: Optional[str] = Field(None, description="Optional description of product or ICP hints")
+    target_url: str = Field(..., description="Target product website URL, Amazon link, or BharatBazaro URL")
+    campaign_type: str = Field("b2b", description="'b2b' for B2B enterprise sales, 'b2c_deals' for BharatBazaro/Amazon affiliate deal promotion")
+    description: Optional[str] = Field(None, description="Optional description of product, ICP hints, or deal category")
 
 
 class ICPData(BaseModel):
@@ -25,8 +26,10 @@ class CampaignResponse(BaseModel):
     id: str
     name: str
     target_url: str
+    campaign_type: str = "b2b"
     description: Optional[str] = None
     icp_json: Optional[str] = None
+    deal_metadata_json: Optional[str] = None
     status: str
     error_message: Optional[str] = None
     created_at: datetime

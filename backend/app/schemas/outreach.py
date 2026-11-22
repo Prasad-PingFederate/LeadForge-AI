@@ -11,6 +11,9 @@ class OutreachMessageBase(BaseModel):
     body_step3: Optional[str] = None
     social_reply: Optional[str] = None
     linkedin_dm: Optional[str] = None
+    whatsapp_message: Optional[str] = None
+    telegram_message: Optional[str] = None
+    deal_affiliate_url: Optional[str] = None
     status: str = "draft"
 
 
@@ -21,6 +24,9 @@ class OutreachUpdate(BaseModel):
     body_step3: Optional[str] = None
     social_reply: Optional[str] = None
     linkedin_dm: Optional[str] = None
+    whatsapp_message: Optional[str] = None
+    telegram_message: Optional[str] = None
+    deal_affiliate_url: Optional[str] = None
     status: Optional[str] = None
 
 
