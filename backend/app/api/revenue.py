@@ -371,6 +371,134 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
     posts_completed_today = min(posts_count, daily_quota)
     remaining_posts_needed = max(0, daily_quota - posts_completed_today)
 
+    # Phase 3: Channel Performance Comparison Card
+    wa_share = round((wa_clicks / total_ch_clicks) * 100, 1)
+    tg_share = round((tg_clicks / total_ch_clicks) * 100, 1)
+    wa_est_comm = round(wa_clicks * 0.04 * avg_comm, 2)
+    tg_est_comm = round(tg_clicks * 0.025 * avg_comm, 2)
+    channel_performance_card = {
+        "whatsapp": {
+            "clicks": wa_clicks,
+            "share_percent": wa_share,
+            "est_conversions": round(wa_clicks * 0.04, 1),
+            "est_commission": wa_est_comm,
+            "cvr_estimate": "3.8% – 4.5%",
+            "conversion_rating": "🔥 High Conversion (VIP Communities)",
+        },
+        "telegram": {
+            "clicks": tg_clicks,
+            "share_percent": tg_share,
+            "est_conversions": round(tg_clicks * 0.025, 1),
+            "est_commission": tg_est_comm,
+            "cvr_estimate": "2.0% – 2.8%",
+            "conversion_rating": "⚡ Fast Velocity (Deal Channels)",
+        },
+        "summary": (
+            f"WhatsApp is yielding {round(wa_est_comm / max(1.0, tg_est_comm), 1)}x higher commission volume than Telegram."
+            if wa_est_comm >= tg_est_comm
+            else f"Telegram leads with {tg_clicks} clicks."
+        ),
+        "recommended_channel": "whatsapp" if wa_clicks >= tg_clicks else "telegram",
+    }
+
+    # Phase 3: Auto-suggest Next Post Combination (Audience + Channel)
+    now_utc = datetime.now(timezone.utc)
+    ist_hour = (now_utc.hour + 5 + (1 if now_utc.minute + 30 >= 60 else 0)) % 24
+    if 6 <= ist_hour < 12:
+        time_slot = "Morning Hero Drop (08:30 IST)"
+        next_channel = "whatsapp"
+        next_audience = "homemaker"
+        next_angle = "Kitchen Upgrade & Family Savings"
+        next_rationale = "High-margin Home & Kitchen items posted to WhatsApp Homemaker VIP groups before lunch convert at 4.2%."
+    elif 12 <= ist_hour < 17:
+        time_slot = "Mid-Day Flash Drop (13:30 IST)"
+        next_channel = "telegram"
+        next_audience = "office"
+        next_angle = "Desk Utility & Professional Gear"
+        next_rationale = "Working professionals browsing Telegram during lunch break convert rapidly on desk & commute gear."
+    elif 17 <= ist_hour < 21:
+        time_slot = "Evening Impulse Drop (18:30 IST)"
+        next_channel = "whatsapp"
+        next_audience = "budget"
+        next_angle = "Sub-₹499 Flash Loot Crash"
+        next_rationale = "Under-₹499 impulse deals convert at 4.8% among Hostel and Budget Deal Hunter groups post-commute."
+    else:
+        time_slot = "Scarcity Closer (21:30 IST)"
+        next_channel = "telegram"
+        next_audience = "budget"
+        next_angle = "Midnight Price Reversion Warning"
+        next_rationale = "Telegram deal channels engage intensely with midnight stock expiration and price bounce warnings."
+
+    recommended_next_post = {
+        "time_slot": time_slot,
+        "channel": next_channel,
+        "audience": next_audience,
+        "suggested_angle": next_angle,
+        "rationale": next_rationale,
+        "current_ist_hour": ist_hour,
+    }
+
+    # Phase 4: Daily Pace Indicator vs ₹10 Lakh Target
+    target_sales_per_day = 120
+    est_today_sales = max(1, int(total_clicks * 0.038))
+    remaining_sales_today = max(0, target_sales_per_day - est_today_sales)
+    pace_pct = min(100.0, round((current_daily_runrate / daily_target_runrate) * 100, 1))
+
+    daily_pace_indicator = {
+        "target_commission_today_inr": daily_target_runrate,
+        "achieved_commission_today_inr": current_daily_runrate,
+        "target_sales_today": target_sales_per_day,
+        "estimated_sales_today": est_today_sales,
+        "remaining_sales_needed_today": remaining_sales_today,
+        "pace_percentage": pace_pct,
+        "pace_status": pace_status,
+        "summary_message": f"You are {pace_pct}% of the way to today's ₹11,111 target. Need {remaining_sales_today} more sales today to maintain the ₹10 Lakh in 90 days runrate.",
+    }
+
+    # Phase 5: Daily Operational Checklist
+    from app.db.models import DispatchLog
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    disp_stmt = select(DispatchLog.slot_id).where(DispatchLog.dispatched_at >= today_start)
+    dispatched_slot_ids = set((await session.execute(disp_stmt)).scalars().all())
+
+    daily_checklist = [
+        {
+            "id": "step_morning_hero",
+            "time": "08:30 IST",
+            "task": "Post Morning Hero deal to WhatsApp (Homemaker & Family)",
+            "completed": "s1_morning" in dispatched_slot_ids or "slot1_morning" in dispatched_slot_ids,
+            "slot_id": "s1_morning",
+        },
+        {
+            "id": "step_midday_telemetry",
+            "time": "13:30 IST",
+            "task": "Review In-App Telemetry & Click Attribution on /admin",
+            "completed": total_clicks >= 5,
+            "slot_id": None,
+        },
+        {
+            "id": "step_evening_impulse",
+            "time": "18:30 IST",
+            "task": "Post Evening Impulse deal (<₹499) to WhatsApp & Telegram",
+            "completed": "s2_evening" in dispatched_slot_ids or "slot2_evening" in dispatched_slot_ids,
+            "slot_id": "s2_evening",
+        },
+        {
+            "id": "step_night_scarcity",
+            "time": "21:30 IST",
+            "task": "Post Scarcity Follow-up ('Price reverts at midnight') if clicks < 25",
+            "completed": "s3_scarcity" in dispatched_slot_ids or "slot3_scarcity" in dispatched_slot_ids,
+            "slot_id": "s3_scarcity",
+        },
+        {
+            "id": "step_night_audit",
+            "time": "23:00 IST",
+            "task": "Verify daily clicks vs 2,500 click target & check ₹11,111 pace",
+            "completed": current_daily_runrate >= (daily_target_runrate * 0.8),
+            "slot_id": None,
+        },
+    ]
+
     daily_performance = {
         "top_3_deals": top_3_deals,
         "best_performing_channel": {
@@ -418,6 +546,10 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         "clicks_by_app": clicks_by_app,
         "goal_progress": goal_progress,
         "channel_learning_weights": channel_learning_weights,
+        "channel_performance": channel_performance_card,
+        "recommended_next_post": recommended_next_post,
+        "daily_pace_indicator": daily_pace_indicator,
+        "daily_checklist": daily_checklist,
         "active_campaigns_count": len(campaigns),
         "estimated_commission_pool_inr": round(total_est_commission_pool, 2),
         "average_commission_per_sale_inr": avg_comm,

@@ -268,15 +268,23 @@ def waterfall_deal_enrichment(deal: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def compute_loot_score(deal: Dict[str, Any]) -> Dict[str, Any]:
+def compute_loot_score(
+    deal: Dict[str, Any],
+    historical_clicks: Optional[int] = None,
+    is_previously_dispatched: bool = False,
+) -> Dict[str, Any]:
     """
-    BuyHatke & Keepa-style Loot Score (0-100):
+    BuyHatke & Keepa-style Loot Score Engine (0-100) with Historical Feedback Loop (Phase 3):
     Calculates instant impulse appeal, price drop depth, and revenue yield for Indian deal shoppers.
     Scoring:
       - Discount Depth (up to 35 pts): >=60% -> 35, >=50% -> 30, >=40% -> 20, >=30% -> 10
       - Impulse Sweet-Spot (up to 30 pts): ₹199-₹999 -> 30, ₹1000-₹2499 -> 20, ₹2500-₹4999 -> 10
       - Social Proof Trust (up to 25 pts): >=4.4 & >=5000 rev -> 25, >=4.2 & >=500 rev -> 20, >=4.0 -> 10
       - Category Yield (up to 10 pts): >=8% -> 10, >=5% -> 6, 0% -> 0
+      - Historical Feedback Adjustment:
+          >=25 clicks -> +15 pts (Viral Leader)
+          >=10 clicks -> +8 pts (Consistent Performer)
+          <2 clicks (if previously posted) -> -10 pts (Low Velocity Penalty)
     """
     price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
     mrp = float(deal.get("mrp") or (price * 1.5))
@@ -331,9 +339,25 @@ def compute_loot_score(deal: Dict[str, Any]) -> Dict[str, Any]:
     else:
         yield_pts = 0
 
-    total_score = min(100, disc_pts + price_pts + trust_pts + yield_pts)
+    base_score = min(100, disc_pts + price_pts + trust_pts + yield_pts)
     if is_zero or (rating < 4.0 and reviews > 50):
-        total_score = min(total_score, 30)
+        base_score = min(base_score, 30)
+
+    # Phase 3: Historical Click Feedback Adjustment
+    feedback_adjustment = 0
+    feedback_reason = None
+    if historical_clicks is not None:
+        if historical_clicks >= 25:
+            feedback_adjustment = 15
+            feedback_reason = f"⚡ High-Velocity Leader (+15 pts): {historical_clicks} verified clicks in attribution feed"
+        elif historical_clicks >= 10:
+            feedback_adjustment = 8
+            feedback_reason = f"📈 Consistent Click Performer (+8 pts): {historical_clicks} verified clicks"
+        elif historical_clicks < 2 and is_previously_dispatched:
+            feedback_adjustment = -10
+            feedback_reason = "⚠️ Low Velocity Penalty (-10 pts): Previous broadcast generated <2 clicks"
+
+    total_score = max(0, min(100, base_score + feedback_adjustment))
 
     is_mega = total_score >= 80
     is_solid = total_score >= 60
@@ -357,9 +381,13 @@ def compute_loot_score(deal: Dict[str, Any]) -> Dict[str, Any]:
         reasons.append(f"High buyer trust proof ({rating}★ with {reviews:,} reviews)")
     if rate >= 8.0:
         reasons.append(f"High-yield affiliate commission ({rate}%)")
+    if feedback_reason:
+        reasons.append(feedback_reason)
 
     return {
         "loot_score": total_score,
+        "base_loot_score": base_score,
+        "feedback_adjustment": feedback_adjustment,
         "loot_badge": badge,
         "tier_label": tier_label,
         "is_mega_loot": is_mega,
@@ -369,8 +397,70 @@ def compute_loot_score(deal: Dict[str, Any]) -> Dict[str, Any]:
             "impulse_price_pts": price_pts,
             "trust_proof_pts": trust_pts,
             "category_yield_pts": yield_pts,
+            "feedback_adjustment_pts": feedback_adjustment,
         },
         "reasons": reasons,
+    }
+
+
+def check_deal_freshness_and_safety(deal: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Phase 4: Deal Freshness & Safety Engine
+    Detects price bounce risk, deal staleness (>24h), and validates ₹99–₹2,999 impulse sweet spot.
+    """
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 0.0)
+    disc = int(deal.get("discount_pct") or 0)
+    cat = (deal.get("category") or "").lower()
+
+    # Calculate deal age
+    deal_age_hours = float(deal.get("deal_age_hours") or 0.0)
+    if "created_at" in deal and not deal_age_hours:
+        try:
+            created_dt = datetime.fromisoformat(str(deal["created_at"]).replace("Z", "+00:00"))
+            delta = datetime.now(timezone.utc) - created_dt
+            deal_age_hours = round(delta.total_seconds() / 3600.0, 1)
+        except Exception:
+            deal_age_hours = 0.0
+
+    is_stale = deal_age_hours >= 24.0
+    price_bounce_risk = is_stale or (disc >= 65 and price < 500)
+
+    # Impulse range check (₹99 – ₹2,999)
+    in_impulse_range = 99.0 <= price <= 2999.0
+    if 199.0 <= price <= 1499.0:
+        price_status = "OPTIMAL_IMPULSE"
+    elif in_impulse_range:
+        price_status = "ACCEPTABLE"
+    elif price > 2999.0:
+        price_status = "TOO_HIGH"
+    else:
+        price_status = "TOO_LOW"
+
+    warnings = []
+    if is_stale:
+        warnings.append(f"⚠️ Deal age ({deal_age_hours:.1f}h) exceeds 24 hours. Amazon dynamic pricing may have bounced to MRP.")
+    if price_bounce_risk and not is_stale:
+        warnings.append("⚠️ Flash price anomaly detected (≥65% off). Extreme risk of Amazon price bounce within hours.")
+    if price > 2999.0:
+        warnings.append(f"⚠️ High ticket price (₹{price:,.0f}). Exceeds ₹2,999 impulse sweet spot. Slow conversion expected.")
+    elif price < 99.0:
+        warnings.append(f"⚠️ Micro ticket price (₹{price:,.0f}). Net commission yield is below ₹5.")
+
+    is_safe_to_broadcast = in_impulse_range and not (is_stale and disc < 30)
+
+    return {
+        "is_safe_to_broadcast": is_safe_to_broadcast,
+        "is_stale": is_stale,
+        "deal_age_hours": deal_age_hours,
+        "price_bounce_risk": price_bounce_risk,
+        "price_status": price_status,
+        "in_impulse_range": in_impulse_range,
+        "warnings": warnings,
+        "safety_badge": (
+            "🟢 SAFE TO BROADCAST"
+            if is_safe_to_broadcast and not warnings
+            else ("🟡 BROADCAST WITH CAUTION" if is_safe_to_broadcast else "🔴 HOLD - STALE/OUT OF RANGE")
+        ),
     }
 
 
@@ -480,7 +570,12 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     waterfall = waterfall_deal_enrichment(deal)
-    loot_info = compute_loot_score(deal)
+    freshness = check_deal_freshness_and_safety(deal)
+    loot_info = compute_loot_score(
+        deal,
+        historical_clicks=deal.get("historical_clicks"),
+        is_previously_dispatched=bool(deal.get("is_previously_dispatched", False)),
+    )
 
     return {
         "verdict": verdict,
@@ -495,6 +590,7 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
         "is_mega_loot": loot_info["is_mega_loot"],
         "loot_info": loot_info,
         "waterfall_enrichment": waterfall,
+        "freshness_safety": freshness,
         "score_breakdown": {
             "commission_yield_pts": score_commission,
             "discount_depth_pts": score_discount,
@@ -513,10 +609,15 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def validate_deal_copy(text: str, affiliate_url: str = "") -> Dict[str, Any]:
+def validate_deal_copy(
+    text: str,
+    affiliate_url: str = "",
+    deal: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
-    Explee-Style Pre-flight Copy Validator:
-    Verifies that generated deal messages meet affiliate compliance and conversion standards.
+    Explee-Style Pre-flight Copy Validator (Enhanced for Phase 4):
+    Verifies that generated deal messages meet affiliate compliance, impulse price range (₹99-₹2,999),
+    deal age safety, and conversion standards.
     """
     tag = settings.amazon_affiliate_tag
     has_tag = tag in (affiliate_url or "") or tag in (text or "")
@@ -533,7 +634,13 @@ def validate_deal_copy(text: str, affiliate_url: str = "") -> Dict[str, Any]:
     if not has_price:
         warnings.append("No price symbol (₹) detected in message body.")
 
-    is_valid = has_tag and length_ok and has_price
+    freshness_info = None
+    if deal:
+        freshness_info = check_deal_freshness_and_safety(deal)
+        if freshness_info["warnings"]:
+            warnings.extend(freshness_info["warnings"])
+
+    is_valid = has_tag and length_ok and has_price and (not freshness_info or freshness_info["is_safe_to_broadcast"])
 
     return {
         "valid": is_valid,
@@ -544,6 +651,7 @@ def validate_deal_copy(text: str, affiliate_url: str = "") -> Dict[str, Any]:
         "has_clear_cta": has_cta,
         "length": len(text or ""),
         "warnings": warnings,
+        "freshness_safety": freshness_info,
         "status_badge": "🟢 COMPLIANT" if is_valid else "⚠️ ACTION NEEDED",
     }
 

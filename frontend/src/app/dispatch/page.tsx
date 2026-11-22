@@ -313,13 +313,33 @@ export default function DispatchQueuePage() {
                   </div>
                 </div>
 
-                {/* Claygent Rationale */}
-                {slot.why_it_converts && (
-                  <div className="text-xs text-emerald-400 bg-emerald-950/30 px-3 py-1.5 rounded-lg border border-emerald-900/50 flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                    <span><strong className="text-emerald-300 font-semibold">Claygent Rationale:</strong> {slot.why_it_converts}</span>
-                  </div>
-                )}
+                {/* Claygent Rationale & Freshness/Safety Strip */}
+                <div className="space-y-2">
+                  {slot.why_it_converts && (
+                    <div className="text-xs text-emerald-400 bg-emerald-950/30 px-3 py-1.5 rounded-lg border border-emerald-900/50 flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                      <span><strong className="text-emerald-300 font-semibold">Claygent Rationale:</strong> {slot.why_it_converts}</span>
+                    </div>
+                  )}
+
+                  {slot.freshness_safety && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                        {slot.freshness_safety.safety_badge}
+                      </span>
+                      {slot.historical_clicks !== undefined && slot.historical_clicks > 0 && (
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800/60 text-cyan-300 font-bold">
+                          ⚡ {slot.historical_clicks} verified clicks in feed
+                        </span>
+                      )}
+                      {slot.freshness_safety.warnings?.length > 0 && (
+                        <span className="text-[11px] text-amber-300 font-medium">
+                          {slot.freshness_safety.warnings[0]}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Audience Segmentation & Channel Toggle Bar */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">

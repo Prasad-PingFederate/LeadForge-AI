@@ -264,6 +264,10 @@ export interface RevenueSummary {
   }>;
   posts_attribution?: PostAttribution[];
   daily_performance?: DailyPerformanceSummary;
+  channel_performance?: ChannelPerformanceComparison;
+  recommended_next_post?: RecommendedNextPost;
+  daily_pace_indicator?: DailyPaceIndicator;
+  daily_checklist?: DailyChecklistItem[];
   clicks_by_step?: {
     step1_morning: number;
     step2_evening: number;
@@ -450,6 +454,63 @@ export interface DispatchQueueSlot {
   dispatched_at?: string | null;
   sent_channel?: string | null;
   sent_audience?: string | null;
+  freshness_safety?: FreshnessSafetyInfo;
+  historical_clicks?: number;
+}
+
+export interface FreshnessSafetyInfo {
+  is_safe_to_broadcast: boolean;
+  is_stale: boolean;
+  deal_age_hours: number;
+  price_bounce_risk: boolean;
+  price_status: string;
+  in_impulse_range: boolean;
+  warnings: string[];
+  safety_badge: string;
+}
+
+export interface ChannelPerformanceMetric {
+  clicks: number;
+  share_percent: number;
+  est_conversions: number;
+  est_commission: number;
+  cvr_estimate: string;
+  conversion_rating: string;
+}
+
+export interface ChannelPerformanceComparison {
+  whatsapp: ChannelPerformanceMetric;
+  telegram: ChannelPerformanceMetric;
+  summary: string;
+  recommended_channel: string;
+}
+
+export interface RecommendedNextPost {
+  time_slot: string;
+  channel: string;
+  audience: string;
+  suggested_angle: string;
+  rationale: string;
+  current_ist_hour: number;
+}
+
+export interface DailyPaceIndicator {
+  target_commission_today_inr: number;
+  achieved_commission_today_inr: number;
+  target_sales_today: number;
+  estimated_sales_today: number;
+  remaining_sales_needed_today: number;
+  pace_percentage: number;
+  pace_status: string;
+  summary_message: string;
+}
+
+export interface DailyChecklistItem {
+  id: string;
+  time: string;
+  task: string;
+  completed: boolean;
+  slot_id: string | null;
 }
 
 export interface DispatchQueueResponse {

@@ -813,3 +813,129 @@ async def test_dispatch_queue_and_mark_sent(async_client):
     data_q2 = resp_q2.json()
     assert data_q2["slots"][0]["is_sent"] is True
 
+
+@pytest.mark.asyncio
+async def test_historical_clicks_feedback_loop():
+    from app.core.deal_analyzer import compute_loot_score
+
+    deal = {
+        "title": "AGARO Regency Air Fryer 12L",
+        "category": "Home & Kitchen",
+        "effective_price": 7499.0,
+        "mrp": 15999.0,
+        "discount_pct": 53,
+        "rating": 4.5,
+        "review_count": 12800,
+    }
+
+    base = compute_loot_score(deal)
+    base_score = base["loot_score"]
+
+    # 1. High clicks boost (+15 pts)
+    boosted = compute_loot_score(deal, historical_clicks=30)
+    assert boosted["loot_score"] == min(100, base_score + 15)
+    assert any("High-Velocity Leader" in r for r in boosted["reasons"])
+
+    # 2. Moderate clicks boost (+8 pts)
+    mod_boost = compute_loot_score(deal, historical_clicks=15)
+    assert mod_boost["loot_score"] == min(100, base_score + 8)
+    assert any("Consistent Click Performer" in r for r in mod_boost["reasons"])
+
+    # 3. Low clicks penalty on previously dispatched deal (-10 pts)
+    penalized = compute_loot_score(deal, historical_clicks=0, is_previously_dispatched=True)
+    assert penalized["loot_score"] == max(0, base_score - 10)
+    assert any("Low Velocity Penalty" in r for r in penalized["reasons"])
+
+
+@pytest.mark.asyncio
+async def test_deal_freshness_and_safety_checks():
+    from app.core.deal_analyzer import check_deal_freshness_and_safety, validate_deal_copy
+
+    # 1. Stale deal (>24h)
+    stale_deal = {
+        "effective_price": 999.0,
+        "discount_pct": 40,
+        "category": "Home & Kitchen",
+        "deal_age_hours": 36.0,
+    }
+    res_stale = check_deal_freshness_and_safety(stale_deal)
+    assert res_stale["is_stale"] is True
+    assert res_stale["price_bounce_risk"] is True
+    assert any("exceeds 24 hours" in w for w in res_stale["warnings"])
+
+    # 2. High-ticket deal (>₹2,999)
+    high_ticket_deal = {
+        "effective_price": 8499.0,
+        "discount_pct": 40,
+        "category": "Home & Kitchen",
+        "deal_age_hours": 2.0,
+    }
+    res_ht = check_deal_freshness_and_safety(high_ticket_deal)
+    assert res_ht["in_impulse_range"] is False
+    assert res_ht["price_status"] == "TOO_HIGH"
+    assert any("High ticket price" in w for w in res_ht["warnings"])
+
+    # 3. Optimal impulse deal (₹199 - ₹1,499)
+    optimal_deal = {
+        "effective_price": 599.0,
+        "discount_pct": 50,
+        "category": "Home & Kitchen",
+        "deal_age_hours": 4.0,
+    }
+    res_opt = check_deal_freshness_and_safety(optimal_deal)
+    assert res_opt["is_safe_to_broadcast"] is True
+    assert res_opt["price_status"] == "OPTIMAL_IMPULSE"
+
+    # 4. Integrated in validate_deal_copy
+    val_res = validate_deal_copy(
+        text="🔥 Special Deal: ₹599 https://www.amazon.in/dp/B002MPPTB8?tag=dammaiprasad-21&ascsubtag=lf-wa-test",
+        affiliate_url="https://www.amazon.in/dp/B002MPPTB8?tag=dammaiprasad-21&ascsubtag=lf-wa-test",
+        deal=optimal_deal,
+    )
+    assert val_res["valid"] is True
+    assert "freshness_safety" in val_res
+
+
+@pytest.mark.asyncio
+async def test_revenue_channel_performance_and_next_post_suggestion(async_client):
+    resp = await async_client.get("/api/revenue/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Phase 3: Channel performance comparison
+    assert "channel_performance" in data
+    cp = data["channel_performance"]
+    assert "whatsapp" in cp
+    assert "telegram" in cp
+    assert "clicks" in cp["whatsapp"]
+    assert "cvr_estimate" in cp["whatsapp"]
+    assert "recommended_channel" in cp
+
+    # Phase 3: AI Recommended next post
+    assert "recommended_next_post" in data
+    rnp = data["recommended_next_post"]
+    assert "time_slot" in rnp
+    assert "channel" in rnp
+    assert "audience" in rnp
+    assert "rationale" in rnp
+
+    # Phase 4: Daily pace indicator
+    assert "daily_pace_indicator" in data
+    dpi = data["daily_pace_indicator"]
+    assert "target_commission_today_inr" in dpi
+    assert dpi["target_commission_today_inr"] > 10000
+    assert "target_sales_today" in dpi
+    assert dpi["target_sales_today"] == 120
+    assert "remaining_sales_needed_today" in dpi
+    assert "pace_percentage" in dpi
+
+    # Phase 5: Daily checklist
+    assert "daily_checklist" in data
+    checklist = data["daily_checklist"]
+    assert len(checklist) == 5
+    task_ids = [c["id"] for c in checklist]
+    assert "step_morning_hero" in task_ids
+    assert "step_evening_impulse" in task_ids
+    assert "step_night_scarcity" in task_ids
+
+

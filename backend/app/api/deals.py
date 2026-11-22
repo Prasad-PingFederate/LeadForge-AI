@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -623,10 +623,19 @@ async def get_dispatch_queue(session: AsyncSession = Depends(get_db)):
     logged_dispatches = (await session.execute(dispatch_stmt)).scalars().all()
     sent_slots = {log.slot_id: log for log in logged_dispatches}
 
+    # Fetch historical clicks by ASIN for loot feedback loop
+    clicks_stmt = select(DealClick.asin, func.count(DealClick.id)).group_by(DealClick.asin)
+    asin_clicks_map = dict((await session.execute(clicks_stmt)).all())
+
     def build_slot_data(slot_id: str, slot_name: str, timing: str, delay_info: str, deal: Dict[str, Any]):
         asin = deal.get("asin") or extract_asin(deal.get("affiliate_url", "")) or "B09W2GFM7Y"
-        loot = compute_loot_score(deal)
+        log_item = sent_slots.get(slot_id)
+        is_sent = log_item is not None
+        hist_clicks = asin_clicks_map.get(asin.upper(), 0)
+
+        loot = compute_loot_score(deal, historical_clicks=hist_clicks, is_previously_dispatched=is_sent)
         quality = evaluate_deal_quality(deal)
+        freshness = quality.get("freshness_safety")
         price = float(deal.get("effective_price") or deal.get("list_price") or 499.0)
         mrp = float(deal.get("mrp") or (price * 1.5))
         disc = int(deal.get("discount_pct") or 40)
@@ -670,8 +679,11 @@ async def get_dispatch_queue(session: AsyncSession = Depends(get_db)):
             "loot_score": loot["loot_score"],
             "loot_badge": loot["loot_badge"],
             "is_mega_loot": loot["is_mega_loot"],
+            "loot_info": loot,
+            "historical_clicks": hist_clicks,
             "quality_verdict": quality.get("verdict", "PROMOTE"),
             "why_it_converts": quality.get("why_it_converts", ""),
+            "freshness_safety": freshness,
             "unique_subtag": subtag,
             "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag=subtag),
             "audience_variants_whatsapp": aud_wa["variants"],

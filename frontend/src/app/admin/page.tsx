@@ -44,6 +44,30 @@ export default function RevenueDashboard() {
   const [calcConvRate, setCalcConvRate] = useState<number>(1.5); // %
   const [calcClicksPerPost, setCalcClicksPerPost] = useState<number>(75);
 
+  // Phase 5: Daily Operational Checklist State
+  const [checklistCompleted, setChecklistCompleted] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("bb_daily_checklist_v1");
+      if (saved) {
+        setChecklistCompleted(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const toggleChecklistItem = (id: string) => {
+    setChecklistCompleted((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem("bb_daily_checklist_v1", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const handleManualLogClick = async (post: PostAttribution) => {
     try {
       setLoggingClickId(post.id);
@@ -225,6 +249,263 @@ export default function RevenueDashboard() {
               style={{ width: `${Math.max(4, progressPct)}%` }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Phase 4 & 5: Daily Pace Indicator & Operational Execution Playbook */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Daily Pace Indicator Card */}
+        <div className="lg:col-span-1 bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-800/60 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 font-mono">
+                Phase 4: Pace
+              </span>
+              <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                Daily Pace Indicator
+              </h2>
+            </div>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+              data?.daily_pace_indicator?.pace_status === "ON TRACK"
+                ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                : "bg-amber-950 text-amber-300 border border-amber-800"
+            }`}>
+              {data?.daily_pace_indicator?.pace_status || "NEEDS PUSH"}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between items-baseline mb-1">
+                <span className="text-xs text-slate-400">Today's Target Pace</span>
+                <span className="text-xs font-mono font-bold text-slate-200">
+                  ₹{data?.daily_pace_indicator?.target_commission_today_inr?.toLocaleString("en-IN") || "11,111"}
+                </span>
+              </div>
+              <div className="w-full h-2.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                <div
+                  className="h-full bg-emerald-400 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, data?.daily_pace_indicator?.pace_percentage || 12)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                <span>{data?.daily_pace_indicator?.pace_percentage || 12}% achieved today</span>
+                <span>₹{data?.daily_pace_indicator?.achieved_commission_today_inr?.toLocaleString("en-IN") || "1,349"} est.</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-xs font-mono">
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-center">
+                <span className="text-[10px] text-slate-400 block font-sans">Target Sales / Day</span>
+                <span className="text-base font-bold text-slate-100">
+                  {data?.daily_pace_indicator?.target_sales_today || 120}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-amber-900/40 text-center">
+                <span className="text-[10px] text-amber-300 block font-sans">Sales Needed Today</span>
+                <span className="text-base font-bold text-amber-400">
+                  {data?.daily_pace_indicator?.remaining_sales_needed_today ?? 116}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-950 p-2.5 rounded-lg border border-slate-800/60">
+              {data?.daily_pace_indicator?.summary_message ||
+                "Need 116 more sales today to maintain the ₹10 Lakh in 90 days runrate."}
+            </p>
+          </div>
+        </div>
+
+        {/* Daily Operational Checklist Card (Phase 5) */}
+        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-sky-950 border border-sky-800 text-[10px] font-bold text-sky-300 font-mono">
+                Phase 5: Playbook
+              </span>
+              <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Daily Operational Checklist (₹11,111 / Day Rhythm)</span>
+              </h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/dispatch"
+                className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 underline font-mono"
+              >
+                Go to Dispatch Queue →
+              </Link>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {(data?.daily_checklist || [
+              { id: "step_morning_hero", time: "08:30 IST", task: "Post Morning Hero deal to WhatsApp (Homemaker & Family)", completed: false, slot_id: "s1_morning" },
+              { id: "step_midday_telemetry", time: "13:30 IST", task: "Review In-App Telemetry & Click Attribution on /admin", completed: false, slot_id: null },
+              { id: "step_evening_impulse", time: "18:30 IST", task: "Post Evening Impulse deal (<₹499) to WhatsApp & Telegram", completed: false, slot_id: "s2_evening" },
+              { id: "step_night_scarcity", time: "21:30 IST", task: "Post Scarcity Follow-up ('Price reverts at midnight') if clicks < 25", completed: false, slot_id: "s3_scarcity" },
+              { id: "step_night_audit", time: "23:00 IST", task: "Verify daily clicks vs 2,500 click target & check ₹11,111 pace", completed: false, slot_id: null },
+            ]).map((item) => {
+              const isChecked = checklistCompleted[item.id] ?? item.completed;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => toggleChecklistItem(item.id)}
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    isChecked
+                      ? "bg-emerald-950/30 border-emerald-800/60 text-slate-200"
+                      : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700 text-slate-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}} // handled by parent div onClick
+                      className="w-4 h-4 rounded border-slate-700 text-emerald-500 accent-emerald-500 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 mr-2 font-bold">
+                        {item.time}
+                      </span>
+                      <span className={`text-xs font-medium ${isChecked ? "line-through text-slate-400" : "text-slate-100"}`}>
+                        {item.task}
+                      </span>
+                    </div>
+                  </div>
+                  {item.slot_id && (
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                      Syncs with /dispatch
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Phase 3: Channel Performance & Recommended Next Post */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Channel Performance Card */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 font-mono">
+                Phase 3 Feedback
+              </span>
+              <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span>Channel Conversion Performance: WhatsApp vs Telegram</span>
+              </h2>
+            </div>
+            <span className="text-xs font-mono text-emerald-400 font-bold">
+              {data?.channel_performance?.summary || "WhatsApp yields higher net commission volume"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* WhatsApp Metrics */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <MessageCircle className="w-4 h-4 text-emerald-400" />
+                  <span>WhatsApp VIP Broadcasts</span>
+                </span>
+                <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                  {data?.channel_performance?.whatsapp?.share_percent ?? 72}% share
+                </span>
+              </div>
+              <div className="space-y-1.5 pt-1 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Total Clicks:</span>
+                  <span className="text-slate-100 font-bold">{data?.channel_performance?.whatsapp?.clicks ?? 36} clicks</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Est. CVR:</span>
+                  <span className="text-emerald-400 font-bold">{data?.channel_performance?.whatsapp?.cvr_estimate || "3.8% – 4.5%"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Est. Conversions:</span>
+                  <span className="text-slate-200">{data?.channel_performance?.whatsapp?.est_conversions ?? 1.4} orders</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-900">
+                  <span className="text-slate-400 font-bold">Est. Net Commission:</span>
+                  <span className="text-emerald-400 font-black">₹{data?.channel_performance?.whatsapp?.est_commission?.toLocaleString("en-IN") || "216"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Telegram Metrics */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-sky-900/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <Send className="w-4 h-4 text-sky-400" />
+                  <span>Telegram Deal Alerts</span>
+                </span>
+                <span className="text-[10px] font-bold font-mono text-sky-400 bg-sky-950 px-2 py-0.5 rounded border border-sky-800">
+                  {data?.channel_performance?.telegram?.share_percent ?? 28}% share
+                </span>
+              </div>
+              <div className="space-y-1.5 pt-1 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Total Clicks:</span>
+                  <span className="text-slate-100 font-bold">{data?.channel_performance?.telegram?.clicks ?? 14} clicks</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Est. CVR:</span>
+                  <span className="text-sky-400 font-bold">{data?.channel_performance?.telegram?.cvr_estimate || "2.0% – 2.8%"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Est. Conversions:</span>
+                  <span className="text-slate-200">{data?.channel_performance?.telegram?.est_conversions ?? 0.4} orders</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-slate-900">
+                  <span className="text-slate-400 font-bold">Est. Net Commission:</span>
+                  <span className="text-sky-400 font-black">₹{data?.channel_performance?.telegram?.est_commission?.toLocaleString("en-IN") || "54"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Recommended Next Post Combination */}
+        <div className="lg:col-span-1 bg-gradient-to-br from-slate-900 to-slate-950 border border-purple-900/60 rounded-2xl p-6 shadow-xl space-y-3 flex flex-col justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="px-2 py-0.5 rounded bg-purple-950 border border-purple-800 text-[10px] font-bold text-purple-300 font-mono">
+                🎯 Next Post Suggestion
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                IST Hour: {data?.recommended_next_post?.current_ist_hour ?? 19}:00
+              </span>
+            </div>
+
+            <h3 className="text-sm font-black text-purple-300">
+              {data?.recommended_next_post?.time_slot || "Evening Impulse Drop (18:30 IST)"}
+            </h3>
+
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-xs font-bold text-emerald-300 font-mono">
+                {data?.recommended_next_post?.channel === "whatsapp" ? "WhatsApp VIP" : "Telegram"}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-slate-800 text-xs font-bold text-slate-200 font-mono">
+                {data?.recommended_next_post?.audience === "homemaker" ? "🏠 Homemaker" : data?.recommended_next_post?.audience === "office" ? "💼 Office Pro" : "⚡ Budget/Hostel"}
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-300 leading-relaxed bg-slate-950 p-2.5 rounded-lg border border-slate-800/80">
+              {data?.recommended_next_post?.rationale ||
+                "Sub-₹499 impulse deals convert at 4.8% among Hostel and Budget Deal Hunter groups post-commute."}
+            </p>
+          </div>
+
+          <Link
+            href="/dispatch"
+            className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition-colors shadow-md mt-2"
+          >
+            <span>🚀 Open in Dispatch Queue</span>
+          </Link>
         </div>
       </div>
 
@@ -1012,6 +1293,16 @@ export default function RevenueDashboard() {
                           {deal.quality_verdict?.why_it_converts && (
                             <div className="text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/60 mt-1 max-w-sm line-clamp-2" title={deal.quality_verdict.why_it_converts}>
                               💡 <span className="font-semibold text-emerald-300">Claygent:</span> {deal.quality_verdict.why_it_converts}
+                            </div>
+                          )}
+                          {(deal.quality_verdict as any)?.freshness_safety?.safety_badge && (
+                            <div className="text-[10px] font-mono font-bold text-slate-300 mt-1">
+                              <span>{(deal.quality_verdict as any).freshness_safety.safety_badge}</span>
+                            </div>
+                          )}
+                          {(deal.quality_verdict as any)?.freshness_safety?.warnings?.length > 0 && (
+                            <div className="text-[10px] text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-900/60 mt-0.5 max-w-sm">
+                              {(deal.quality_verdict as any).freshness_safety.warnings[0]}
                             </div>
                           )}
                         </td>
