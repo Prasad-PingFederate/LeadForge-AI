@@ -74,6 +74,26 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         else:
             clicks_by_channel["other"] += count
 
+    # 3b. Instantly-Style Clicks by Sequence Step Attribution
+    subtag_stmt = select(DealClick.subtag)
+    all_subtags = (await session.execute(subtag_stmt)).scalars().all()
+    clicks_by_step = {
+        "step1_morning": 0,
+        "step2_evening": 0,
+        "step3_scarcity": 0,
+        "unspecified": 0,
+    }
+    for s in all_subtags:
+        s_lower = (s or "").lower()
+        if "-s1" in s_lower:
+            clicks_by_step["step1_morning"] += 1
+        elif "-s2" in s_lower:
+            clicks_by_step["step2_evening"] += 1
+        elif "-s3" in s_lower:
+            clicks_by_step["step3_scarcity"] += 1
+        else:
+            clicks_by_step["unspecified"] += 1
+
     # 4. Recent clicks
     clicks_stmt = select(DealClick).order_by(desc(DealClick.created_at)).limit(15)
     recent_clicks_rows = (await session.execute(clicks_stmt)).scalars().all()
@@ -330,6 +350,7 @@ async def get_revenue_summary(session: AsyncSession = Depends(get_db)):
         "total_posts_generated": max(posts_count, len(posts_attribution)),
         "total_clicks": total_clicks,
         "clicks_by_channel": clicks_by_channel,
+        "clicks_by_step": clicks_by_step,
         "channel_learning_weights": channel_learning_weights,
         "active_campaigns_count": len(campaigns),
         "estimated_commission_pool_inr": round(total_est_commission_pool, 2),
@@ -506,6 +527,16 @@ async def get_click_activity_feed(
             "x": "🐦 X / Twitter",
         }.get((c.channel or "").lower(), f"🌐 {c.channel}")
 
+        sub_lower = (c.subtag or "").lower()
+        if "-s1" in sub_lower:
+            step_label = "☀️ S1: Morning Hero"
+        elif "-s2" in sub_lower:
+            step_label = "🌙 S2: Evening Impulse"
+        elif "-s3" in sub_lower:
+            step_label = "⚡ S3: Scarcity Nudge"
+        else:
+            step_label = "🔥 Direct Deal Drop"
+
         feed_items.append({
             "id": c.id,
             "asin": c.asin,
@@ -513,6 +544,7 @@ async def get_click_activity_feed(
             "channel": c.channel,
             "channel_badge": channel_badge,
             "subtag": c.subtag,
+            "step_label": step_label,
             "target_url": c.target_url,
             "referrer": c.referrer or "Direct / WhatsApp App",
             "created_at": c.created_at.isoformat() if c.created_at else datetime.now(timezone.utc).isoformat(),
@@ -531,6 +563,16 @@ async def get_click_activity_feed(
             ("B07RJWB549", "telegram", "lf-tg-20261122-b07rjwb549", 35, "Lakme Eyeconic Kajal Twin Pack", 260, 20.80),
         ]
         for asin_seed, ch_seed, sub_seed, min_ago, title_seed, price_seed, comm_seed in seed_entries:
+            sub_lower = sub_seed.lower()
+            if "-s1" in sub_lower:
+                s_lbl = "☀️ S1: Morning Hero"
+            elif "-s2" in sub_lower:
+                s_lbl = "🌙 S2: Evening Impulse"
+            elif "-s3" in sub_lower:
+                s_lbl = "⚡ S3: Scarcity Nudge"
+            else:
+                s_lbl = "🔥 Direct Deal Drop"
+
             feed_items.append({
                 "id": f"feed-seed-{asin_seed.lower()}",
                 "asin": asin_seed,
@@ -538,6 +580,7 @@ async def get_click_activity_feed(
                 "channel": ch_seed,
                 "channel_badge": "💬 WhatsApp VIP" if ch_seed == "whatsapp" else "📢 Telegram Alert",
                 "subtag": sub_seed,
+                "step_label": s_lbl,
                 "target_url": to_canonical_affiliate_url(asin_seed, subtag=sub_seed),
                 "referrer": "WhatsApp Mobile Direct" if ch_seed == "whatsapp" else "Telegram Android Client",
                 "created_at": now.isoformat(),

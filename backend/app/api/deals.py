@@ -17,6 +17,7 @@ from app.core.deal_analyzer import (
     format_telegram_deal_post,
     extract_asin,
     validate_deal_copy,
+    generate_3step_sequence,
 )
 from app.config import settings
 
@@ -129,6 +130,7 @@ async def get_live_deal_by_asin(asin: str):
         "commission_info": comm,
         "quality_verdict": quality,
         "where_to_post": where_to_post,
+        "sequence": generate_3step_sequence(deal),
     }
 
 
@@ -232,10 +234,12 @@ async def export_deals_for_n8n(
             "telegram_message": tg_msg,
             "unique_tag": unique_tag,
             "quality_verdict": quality.get("verdict", "PROMOTE"),
+            "why_it_converts": quality.get("why_it_converts", ""),
             "commission_rate_percent": comm["commission_rate_percent"],
             "estimated_commission_rupees": comm["estimated_commission_rupees"],
             "rating": rating,
             "review_count": reviews,
+            "sequence": generate_3step_sequence(d),
         })
 
         if len(exported) >= limit:

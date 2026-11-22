@@ -212,6 +212,30 @@ export interface RevenueSummary {
       verdict: string;
       verdict_badge: string;
       reason: string;
+      why_it_converts?: string;
+      waterfall_enrichment?: {
+        tier1_pricing_yield: {
+          price: number;
+          mrp: number;
+          discount_pct: number;
+          savings_inr: number;
+          commission_rate_percent: number;
+          commission_rupees_per_sale: number;
+        };
+        tier2_trust_proof: {
+          rating: number;
+          review_count: number;
+          trust_tier: string;
+          trust_passed: boolean;
+        };
+        tier3_velocity_urgency: {
+          is_loot: boolean;
+          is_price_drop_leader: boolean;
+          is_high_yield: boolean;
+          is_impulse_sweet_spot: boolean;
+        };
+        why_it_converts: string;
+      };
       criteria_passed_count: number;
       composite_velocity_score?: number;
       pool_tier?: string;
@@ -234,6 +258,12 @@ export interface RevenueSummary {
   }>;
   posts_attribution?: PostAttribution[];
   daily_performance?: DailyPerformanceSummary;
+  clicks_by_step?: {
+    step1_morning: number;
+    step2_evening: number;
+    step3_scarcity: number;
+    unspecified: number;
+  };
 }
 
 export interface DailyPerformanceSummary {
@@ -288,6 +318,7 @@ export interface ActivityFeedItem {
   title: string;
   channel: string;
   channel_badge: string;
+  step_label?: string;
   subtag: string;
   target_url: string;
   referrer: string;

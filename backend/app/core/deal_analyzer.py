@@ -191,6 +191,83 @@ def compute_commission_estimate(category: str, deal_price: float) -> Dict[str, A
     }
 
 
+def waterfall_deal_enrichment(deal: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Clay-Style 3-Tier Waterfall Deal Enrichment:
+    Layer 1: Price & Margin Waterfall (Price, MRP, Discount %, Category Commission %)
+    Layer 2: Social Proof & Trust Waterfall (Rating, Review Volume, Trust Tier)
+    Layer 3: Velocity & Urgency Waterfall (Impulse Sweet-Spot, Loot Badge, High Yield)
+    Claygent Synthesizer: 1-sentence "Why This Deal Converts" rationale.
+    """
+    title = deal.get("title") or deal.get("name") or "Amazon Deal"
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
+    mrp = float(deal.get("mrp") or (price * 1.5))
+    disc = int(deal.get("discount_pct") or (round(((mrp - price) / mrp) * 100) if mrp > price else 35))
+    savings = int(mrp - price) if mrp > price else int(price * 0.35)
+    cat = (deal.get("category") or "Home & Kitchen")
+    rating = float(deal.get("rating") or 4.3)
+    reviews = int(deal.get("review_count") or deal.get("reviews_count") or 1500)
+
+    # Layer 1: Price & Commission Yield Waterfall
+    comm_info = compute_commission_estimate(cat, price)
+    rate = comm_info["commission_rate_percent"]
+    comm_rupees = comm_info["estimated_commission_rupees"]
+    is_zero_roi = comm_info["is_zero_roi"] or rate == 0.0
+
+    # Layer 2: Trust & Social Proof Waterfall
+    if rating >= 4.4 and reviews >= 10000:
+        trust_tier = "Elite Trust (Viral Social Proof)"
+    elif rating >= 4.2 and reviews >= 500:
+        trust_tier = "High Trust (Verified Buyer Proof)"
+    elif rating >= 4.0:
+        trust_tier = "Moderate Trust"
+    else:
+        trust_tier = "Low Trust Risk"
+
+    # Layer 3: Velocity & Urgency Waterfall
+    is_loot = disc >= 50 and price <= 2999.0
+    is_price_drop_leader = savings >= 500
+    is_high_yield = rate >= 8.0
+    is_impulse_sweet_spot = 199.0 <= price <= 1499.0
+
+    # Claygent Rationale Synthesizer
+    title_short = title[:45].strip()
+    if is_zero_roi:
+        why_it_converts = f"Suppressed: {cat} has 0% Amazon affiliate commission. Promotes zero revenue."
+    elif rating < 4.0 and reviews > 50:
+        why_it_converts = f"Suppressed: Rating ({rating}★) below minimum 4.0 standard. High return rate risk."
+    else:
+        why_it_converts = (
+            f"{title_short} at verified ₹{price:,.0f} saves ₹{savings:,} ({disc}% off) "
+            f"with {rating}★ ({reviews:,} reviews) yielding {rate}% commission (₹{comm_rupees:.2f}/sale)."
+        )
+
+    return {
+        "tier1_pricing_yield": {
+            "price": price,
+            "mrp": mrp,
+            "discount_pct": disc,
+            "savings_inr": savings,
+            "commission_rate_percent": rate,
+            "commission_rupees_per_sale": comm_rupees,
+            "is_zero_commission": is_zero_roi,
+        },
+        "tier2_trust_proof": {
+            "rating": rating,
+            "review_count": reviews,
+            "trust_tier": trust_tier,
+            "trust_passed": rating >= 4.2 and reviews >= 500,
+        },
+        "tier3_velocity_urgency": {
+            "is_loot": is_loot,
+            "is_price_drop_leader": is_price_drop_leader,
+            "is_high_yield": is_high_yield,
+            "is_impulse_sweet_spot": is_impulse_sweet_spot,
+        },
+        "why_it_converts": why_it_converts,
+    }
+
+
 def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     """
     Sales Manager Deal Quality Filter (Phase 3 Standard):
@@ -230,11 +307,6 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     ])
 
     # Strict 5-point PROMOTE check (Feature 6):
-    # 1. Discount >= 35%
-    # 2. Price between ₹99 and ₹2,999
-    # 3. Rating >= 4.2
-    # 4. Review count >= 500
-    # 5. Commission rate >= 6% (and non-0% mobile)
     is_strictly_promote = (
         c1_discount and c2_price and c3_rating and c4_reviews and c5_commission and c6_not_zero_roi
     )
@@ -301,13 +373,17 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
         else ("Tier 2: Targeted / Evening Hold" if verdict == "HOLD" else "Tier 3: Suppressed")
     )
 
+    waterfall = waterfall_deal_enrichment(deal)
+
     return {
         "verdict": verdict,
         "verdict_badge": verdict_badge,
         "reason": reason,
+        "why_it_converts": waterfall["why_it_converts"],
         "criteria_passed_count": criteria_passed,
         "composite_velocity_score": composite_score,
         "pool_tier": pool_tier,
+        "waterfall_enrichment": waterfall,
         "score_breakdown": {
             "commission_yield_pts": score_commission,
             "discount_depth_pts": score_discount,
@@ -790,26 +866,75 @@ def generate_3step_sequence(
         f"_(Don't pay full price tomorrow!)_"
     )
 
+    # Telegram Formatted Messages
+    step1_tg = (
+        f"☀️ **MORNING HERO DROP — EXCLUSIVE SAVINGS** ☀️\n\n"
+        f"**{title}**\n"
+        f"⭐️ Rating: {rating}/5 ({reviews:,}+ verified ratings)\n\n"
+        f"📉 Price: **₹{int(price):,}** ~₹{int(mrp):,}~ ({discount_pct}% OFF)\n"
+        f"💰 You Save: **₹{savings:,}**\n\n"
+        f"🛒 **Buy on Amazon:** [Check Live Price]({url_s1})"
+    )
+
+    step2_tg = (
+        f"🌙 **EVENING FLASH IMPULSE LOOT** 🌙\n\n"
+        f"**{title}**\n\n"
+        f"📉 Deal Price: **₹{int(price):,}** ~₹{int(mrp):,}~ ({discount_pct}% Off)\n"
+        f"🔥 *Grab before tonight's price bounce:*\n"
+        f"🛒 **Buy on Amazon:** [Order Now]({url_s2})"
+    )
+
+    step3_tg = (
+        f"🚨 **PRICE BOUNCE WARNING: FINAL HOURS** 🚨\n\n"
+        f"**{title}**\n"
+        f"⚠️ Price held at **₹{int(price):,}** (Deal allocation 83% claimed). Reverts to MRP at midnight.\n\n"
+        f"🛒 **Lock In Discount Now:** [Claim Deal]({url_s3})"
+    )
+
     return {
         "step1_morning": {
+            "step_number": 1,
             "title": "☀️ Step 1: Morning Hero Broadcast (8:30 AM)",
             "message": step1_morning,
+            "whatsapp_message": step1_morning,
+            "telegram_message": step1_tg,
             "subtag": subtag_s1,
             "url": url_s1,
+            "delay_hours": 0,
+            "delay_unit": "hours",
+            "send_window_ist": "08:30 – 10:30 IST",
+            "trigger_condition": "Immediate Morning Hero Blast",
+            "is_conditional": False,
             "best_time": "8:30 AM – 10:30 AM IST",
         },
         "step2_evening": {
+            "step_number": 2,
             "title": "🌙 Step 2: Evening Impulse (<₹499)",
             "message": step2_evening,
+            "whatsapp_message": step2_evening,
+            "telegram_message": step2_tg,
             "subtag": subtag_s2,
             "url": url_s2,
+            "delay_hours": 10,
+            "delay_unit": "hours",
+            "send_window_ist": "18:30 – 20:30 IST",
+            "trigger_condition": "Automatic Evening Impulse Delay (+10h)",
+            "is_conditional": False,
             "best_time": "7:30 PM – 9:30 PM IST",
         },
         "step3_followup": {
+            "step_number": 3,
             "title": "⚡ Step 3: Scarcity & Price Bounce Follow-up",
             "message": step3_followup,
+            "whatsapp_message": step3_followup,
+            "telegram_message": step3_tg,
             "subtag": subtag_s3,
             "url": url_s3,
+            "delay_hours": 26,
+            "delay_unit": "hours",
+            "send_window_ist": "21:30 – 23:00 IST",
+            "trigger_condition": "Conditional: Trigger if clicks < 25 or midnight expiry",
+            "is_conditional": True,
             "best_time": "Low clicks follow-up / 10:00 PM IST",
         },
     }

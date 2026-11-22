@@ -502,3 +502,85 @@ async def test_activity_feed_endpoint():
         assert "channel" in first_item
         assert "subtag" in first_item
         assert "est_commission_rupees" in first_item
+        assert "step_label" in first_item
+
+
+@pytest.mark.asyncio
+async def test_clay_waterfall_enrichment():
+    from app.core.deal_analyzer import waterfall_deal_enrichment, evaluate_deal_quality
+
+    deal = {
+        "title": "Hawkins Futura Hard Anodised Pressure Cooker 3L",
+        "category": "Home & Kitchen",
+        "effective_price": 2499.0,
+        "mrp": 3350.0,
+        "discount_pct": 25,
+        "rating": 4.4,
+        "review_count": 28400,
+    }
+    wf = waterfall_deal_enrichment(deal)
+    assert "tier1_pricing_yield" in wf
+    assert "tier2_trust_proof" in wf
+    assert "tier3_velocity_urgency" in wf
+    assert "why_it_converts" in wf
+    assert "Hawkins" in wf["why_it_converts"]
+    assert "9.0% commission" in wf["why_it_converts"] or "9% commission" in wf["why_it_converts"]
+
+    # Verify integrated in evaluate_deal_quality
+    eq = evaluate_deal_quality(deal)
+    assert "waterfall_enrichment" in eq
+    assert "why_it_converts" in eq
+    assert eq["why_it_converts"] == wf["why_it_converts"]
+
+
+@pytest.mark.asyncio
+async def test_instantly_3step_sequence_delays_and_conditions():
+    from app.core.deal_analyzer import generate_3step_sequence
+
+    deal = {
+        "title": "AGARO Regency Air Fryer 12L",
+        "asin": "B091CR2FXY",
+        "category": "Home & Kitchen",
+        "effective_price": 7499.0,
+        "mrp": 15999.0,
+        "discount_pct": 53,
+        "rating": 4.5,
+        "review_count": 12800,
+    }
+    seq = generate_3step_sequence(deal)
+    s1 = seq["step1_morning"]
+    s2 = seq["step2_evening"]
+    s3 = seq["step3_followup"]
+
+    assert s1["step_number"] == 1
+    assert s1["delay_hours"] == 0
+    assert "08:30" in s1["send_window_ist"]
+    assert s1["is_conditional"] is False
+    assert "telegram_message" in s1
+
+    assert s2["step_number"] == 2
+    assert s2["delay_hours"] == 10
+    assert "18:30" in s2["send_window_ist"]
+    assert s2["is_conditional"] is False
+    assert "telegram_message" in s2
+
+    assert s3["step_number"] == 3
+    assert s3["delay_hours"] == 26
+    assert s3["is_conditional"] is True
+    assert "telegram_message" in s3
+
+
+@pytest.mark.asyncio
+async def test_revenue_clicks_by_step_summary():
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/revenue/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "clicks_by_step" in data
+        assert "step1_morning" in data["clicks_by_step"]
+        assert "step2_evening" in data["clicks_by_step"]
+        assert "step3_scarcity" in data["clicks_by_step"]

@@ -950,6 +950,11 @@ export default function RevenueDashboard() {
                             {deal.name}
                           </div>
                           <div className="font-mono text-[11px] text-slate-500">ASIN: {deal.asin}</div>
+                          {deal.quality_verdict?.why_it_converts && (
+                            <div className="text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/60 mt-1 max-w-sm line-clamp-2" title={deal.quality_verdict.why_it_converts}>
+                              💡 <span className="font-semibold text-emerald-300">Claygent:</span> {deal.quality_verdict.why_it_converts}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-medium">
@@ -1025,19 +1030,19 @@ export default function RevenueDashboard() {
         </div>
       </div>
 
-      {/* Apollo-Style Real-time Live Click Activity Feed */}
-      <div className="bg-slate-900 border border-cyan-900/40 rounded-xl p-6 shadow-sm space-y-3">
+      {/* Apollo & Instantly-Style Real-time Live Click Activity Feed */}
+      <div className="bg-slate-900 border border-cyan-900/40 rounded-xl p-6 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
                 <MousePointerClick className="w-4 h-4 text-cyan-400" />
-                <span>Apollo-Style Live Click Activity Stream</span>
+                <span>Instantly & Apollo-Style Activity Stream & Sequence Attribution</span>
               </h2>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Real-time click events stream with channel attribution, unique <code className="text-cyan-300 font-mono">ascsubtag</code>, and realized commission yield.
+              Live click stream with sequence touchpoint attribution (S1 Morning, S2 Evening, S3 Scarcity), unique <code className="text-cyan-300 font-mono">ascsubtag</code>, and realized commission yield.
             </p>
           </div>
           <button
@@ -1049,13 +1054,62 @@ export default function RevenueDashboard() {
           </button>
         </div>
 
+        {/* Instantly-Style 3-Step Sequence Attribution Badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-900/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                ☀️ S1: Morning Hero
+              </span>
+              <span className="font-mono text-[10px] bg-amber-950 text-amber-200 px-1.5 py-0.5 rounded border border-amber-800 font-semibold">
+                08:30 IST (0h delay)
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-amber-400 mt-1.5">
+              {data?.clicks_by_step?.step1_morning || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">Top-commission utility drop</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-sky-900/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                🌙 S2: Evening Impulse
+              </span>
+              <span className="font-mono text-[10px] bg-sky-950 text-sky-200 px-1.5 py-0.5 rounded border border-sky-800 font-semibold">
+                18:30 IST (+10h delay)
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-sky-400 mt-1.5">
+              {data?.clicks_by_step?.step2_evening || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">Sub-₹499 lightning checkout</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-rose-900/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-rose-300 flex items-center gap-1.5">
+                ⚡ S3: Scarcity Nudge
+              </span>
+              <span className="font-mono text-[10px] bg-rose-950 text-rose-200 px-1.5 py-0.5 rounded border border-rose-800 font-semibold">
+                Conditional (+26h)
+              </span>
+            </div>
+            <div className="text-xl font-bold font-mono text-rose-400 mt-1.5">
+              {data?.clicks_by_step?.step3_scarcity || 0} clicks
+            </div>
+            <span className="text-[10px] text-slate-400 block mt-0.5">Midnight price bounce recovery</span>
+          </div>
+        </div>
+
         {activityFeed && activityFeed.length > 0 ? (
-          <div className="divide-y divide-slate-800 overflow-x-auto">
+          <div className="divide-y divide-slate-800 overflow-x-auto pt-2">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold text-[10px]">
                 <tr>
                   <th className="py-2.5 px-3">Timestamp</th>
                   <th className="py-2.5 px-3">Channel</th>
+                  <th className="py-2.5 px-3">Sequence Touch</th>
                   <th className="py-2.5 px-3">Product / ASIN</th>
                   <th className="py-2.5 px-3">Attribution Subtag</th>
                   <th className="py-2.5 px-3">Referrer</th>
@@ -1085,6 +1139,11 @@ export default function RevenueDashboard() {
                         }`}
                       >
                         {item.channel_badge || item.channel}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-sans">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                        {item.step_label || "🔥 Direct Drop"}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-sans font-medium text-slate-200 max-w-xs truncate" title={item.title}>
