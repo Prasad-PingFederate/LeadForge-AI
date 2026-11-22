@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse, parse_qs, urlencode
 
@@ -313,6 +314,36 @@ async def get_top_converting_deals(limit: int = 10) -> List[Dict[str, Any]]:
     return [item[1] for item in scored[:limit]]
 
 
+def generate_channel_subtag(
+    channel: str,
+    campaign_id: Optional[str] = None,
+    asin: Optional[str] = None,
+    date_str: Optional[str] = None,
+) -> str:
+    """
+    Builds a granular Amazon Associate ascsubtag for exact conversion attribution:
+    Format: lf-{channel}-{YYYYMMDD}-{ident}
+    e.g. lf-wa-20261122-c4f8a1 or lf-tg-20261122-B002MPPTB8
+    """
+    d = date_str or datetime.now(timezone.utc).strftime("%Y%m%d")
+    ch = {
+        "whatsapp": "wa",
+        "telegram": "tg",
+        "reddit": "rd",
+        "twitter": "x",
+        "x": "x",
+        "email": "em",
+    }.get(channel.lower(), channel.lower()[:2])
+
+    ident = "bb"
+    if campaign_id:
+        ident = campaign_id.replace("-", "")[:6]
+    elif asin:
+        ident = asin.upper()[:10]
+
+    return f"lf-{ch}-{d}-{ident}"
+
+
 def format_whatsapp_deal_post(
     title: str,
     deal_price: float,
@@ -321,12 +352,14 @@ def format_whatsapp_deal_post(
     rating: float = 4.3,
     reviews_count: int = 4500,
     key_features: Optional[list] = None,
-    subtag: str = "lf-wa",
+    subtag: Optional[str] = None,
+    campaign_id: Optional[str] = None,
 ) -> str:
     """Formats an ultra-high converting WhatsApp deal broadcast message."""
     discount_pct = int(round(((mrp - deal_price) / mrp) * 100)) if mrp > deal_price else 45
     savings = int(mrp - deal_price) if mrp > deal_price else int(deal_price * 0.4)
-    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=subtag)
+    actual_subtag = subtag or generate_channel_subtag("whatsapp", campaign_id=campaign_id, asin=asin)
+    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=actual_subtag)
 
     features = key_features or [
         "Verified all-time low price drop",
@@ -353,14 +386,57 @@ def format_telegram_deal_post(
     deal_price: float,
     mrp: float,
     asin: Optional[str] = None,
-    subtag: str = "lf-tg",
+    subtag: Optional[str] = None,
+    campaign_id: Optional[str] = None,
 ) -> str:
     discount_pct = int(round(((mrp - deal_price) / mrp) * 100)) if mrp > deal_price else 40
-    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=subtag)
+    actual_subtag = subtag or generate_channel_subtag("telegram", campaign_id=campaign_id, asin=asin)
+    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=actual_subtag)
 
     return (
         f"🚨 **PRICE DROP ALERT** 🚨\n\n"
         f"**{title}**\n\n"
         f"🏷 Price: **₹{int(deal_price):,}** ~₹{int(mrp):,}~ ({discount_pct}% Off)\n\n"
         f"🛒 **Buy on Amazon:** [Check Deal Now]({aff_url})"
+    )
+
+
+def format_reddit_deal_post(
+    title: str,
+    deal_price: float,
+    mrp: float,
+    asin: Optional[str] = None,
+    subtag: Optional[str] = None,
+    campaign_id: Optional[str] = None,
+) -> str:
+    discount_pct = int(round(((mrp - deal_price) / mrp) * 100)) if mrp > deal_price else 40
+    savings = int(mrp - deal_price) if mrp > deal_price else int(deal_price * 0.4)
+    actual_subtag = subtag or generate_channel_subtag("reddit", campaign_id=campaign_id, asin=asin)
+    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=actual_subtag)
+
+    return (
+        f"[Deal Alert] {title} dropped to ₹{int(deal_price):,} ({discount_pct}% off, save ₹{savings:,}) on Amazon India.\n\n"
+        f"Verified price drop with brand warranty and Prime delivery.\n"
+        f"Check deal: {aff_url}"
+    )
+
+
+def format_x_deal_post(
+    title: str,
+    deal_price: float,
+    mrp: float,
+    asin: Optional[str] = None,
+    subtag: Optional[str] = None,
+    campaign_id: Optional[str] = None,
+) -> str:
+    discount_pct = int(round(((mrp - deal_price) / mrp) * 100)) if mrp > deal_price else 40
+    actual_subtag = subtag or generate_channel_subtag("x", campaign_id=campaign_id, asin=asin)
+    aff_url = to_canonical_affiliate_url(asin or "B09W2GFM7Y", subtag=actual_subtag)
+    short_title = title[:65]
+
+    return (
+        f"🔥 PRICE DROP: {short_title}...\n\n"
+        f"📉 Deal: ₹{int(deal_price):,} (~MRP ₹{int(mrp):,}~ | {discount_pct}% off)\n"
+        f"🛒 Buy on Amazon: {aff_url}\n\n"
+        f"#AmazonDeals #PriceDrop #LootDealsIndia"
     )

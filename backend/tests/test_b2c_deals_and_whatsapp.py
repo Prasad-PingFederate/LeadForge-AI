@@ -9,6 +9,7 @@ from app.core.deal_analyzer import (
     get_deal_by_asin,
     search_live_deals,
     get_top_converting_deals,
+    generate_channel_subtag,
 )
 from app.core.cache import TTLCache
 from app.agents.profiler_agent import profiler_agent
@@ -170,3 +171,47 @@ async def test_deals_api_endpoints(async_client: AsyncClient):
     resp_detail = await async_client.get(f"/api/deals/live/{test_asin}")
     assert resp_detail.status_code == 200
     assert resp_detail.json()["asin"] == test_asin
+
+
+def test_unique_channel_subtags():
+    sub_wa = generate_channel_subtag("whatsapp", campaign_id="camp12345", asin="B002MPPTB8")
+    assert sub_wa.startswith("lf-wa-")
+    assert "camp12" in sub_wa
+
+    sub_tg = generate_channel_subtag("telegram", asin="B002MPPTB8")
+    assert sub_tg.startswith("lf-tg-")
+    assert "B002MPPTB8" in sub_tg
+
+    sub_rd = generate_channel_subtag("reddit")
+    assert sub_rd.startswith("lf-rd-")
+
+
+@pytest.mark.asyncio
+async def test_revenue_and_click_tracking(async_client: AsyncClient):
+    # 1. Post click
+    click_payload = {
+        "asin": "B002MPPTB8",
+        "channel": "whatsapp",
+        "subtag": "lf-wa-20261122-test",
+    }
+    resp_click = await async_client.post("/api/deals/click", json=click_payload)
+    assert resp_click.status_code == 201
+    assert resp_click.json()["success"] is True
+
+    # 2. Get Revenue Summary
+    resp_rev = await async_client.get("/api/revenue/summary")
+    assert resp_rev.status_code == 200
+    rev_data = resp_rev.json()
+    assert rev_data["target_commission_inr"] == 1000000.0
+    assert rev_data["total_clicks"] >= 1
+    assert "clicks_by_channel" in rev_data
+    assert rev_data["clicks_by_channel"]["whatsapp"] >= 1
+    assert len(rev_data["recent_deals"]) > 0
+    assert "estimated_commission_rupees" in rev_data["recent_deals"][0]
+
+    # 3. Test HTTP 302 Short link redirect
+    resp_redir = await async_client.get("/r/lf-wa-20261122-B002MPPTB8", follow_redirects=False)
+    assert resp_redir.status_code == 302
+    assert "amazon.in" in resp_redir.headers["location"]
+    assert "dammaiprasad-21" in resp_redir.headers["location"]
+    assert "lf-wa-20261122-B002MPPTB8" in resp_redir.headers["location"]

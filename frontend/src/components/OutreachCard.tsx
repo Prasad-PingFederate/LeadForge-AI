@@ -18,7 +18,7 @@ import {
   Check,
   Share2,
 } from "lucide-react";
-import { updateOutreach, dispatchOutreach, postReplyFeedback } from "@/lib/api";
+import { updateOutreach, dispatchOutreach, postReplyFeedback, trackDealClick } from "@/lib/api";
 
 interface OutreachCardProps {
   message: OutreachMessage;
@@ -57,6 +57,13 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
 
   const handleOpenWhatsApp = () => {
     const textToShare = whatsappMsg || step1;
+    const asinMatch = (message.deal_affiliate_url || "").match(/dp\/([A-Z0-9]{10})/i);
+    trackDealClick({
+      asin: asinMatch ? asinMatch[1] : "B002MPPTB8",
+      channel: "whatsapp",
+      subtag: message.subtag || "lf-wa-manual",
+      outreach_id: message.id,
+    });
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(textToShare)}`;
     window.open(url, "_blank");
   };
@@ -64,6 +71,13 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
   const handleOpenTelegram = () => {
     const textToShare = telegramMsg || step1;
     const affUrl = message.deal_affiliate_url || "";
+    const asinMatch = affUrl.match(/dp\/([A-Z0-9]{10})/i);
+    trackDealClick({
+      asin: asinMatch ? asinMatch[1] : "B002MPPTB8",
+      channel: "telegram",
+      subtag: message.subtag || "lf-tg-manual",
+      outreach_id: message.id,
+    });
     const url = `https://t.me/share/url?url=${encodeURIComponent(affUrl)}&text=${encodeURIComponent(textToShare)}`;
     window.open(url, "_blank");
   };
@@ -146,9 +160,21 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
               </span>
             )}
             {message.deal_affiliate_url && (
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
-                tag=dammaiprasad-21
-              </span>
+              <>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
+                  tag=dammaiprasad-21
+                </span>
+                {message.subtag && (
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-slate-950 text-slate-300 border border-slate-800" title="Amazon Associate Attribution Subtag">
+                    subtag: {message.subtag}
+                  </span>
+                )}
+                {message.clicks_count !== undefined && message.clicks_count > 0 && (
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
+                    {message.clicks_count} clicks
+                  </span>
+                )}
+              </>
             )}
           </div>
           <span className="text-xs text-slate-400 font-mono mt-0.5 block">

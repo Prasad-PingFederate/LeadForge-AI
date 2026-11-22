@@ -154,6 +154,8 @@ class OutreachMessage(Base):
     whatsapp_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     telegram_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     deal_affiliate_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    subtag: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    clicks_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     status: Mapped[str] = mapped_column(String(50), default="draft", nullable=False)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -181,4 +183,27 @@ class SuppressionList(Base):
     __table_args__ = (
         Index("ix_suppression_domain", "domain"),
         Index("ix_suppression_email", "email"),
+    )
+
+
+class DealClick(Base):
+    __tablename__ = "deal_clicks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    campaign_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    outreach_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    asin: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[str] = mapped_column(String(50), default="whatsapp", nullable=False)
+    subtag: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    ip_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    referrer: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (
+        Index("ix_deal_clicks_subtag", "subtag"),
+        Index("ix_deal_clicks_asin", "asin"),
+        Index("ix_deal_clicks_channel", "channel"),
+        Index("ix_deal_clicks_campaign_id", "campaign_id"),
     )

@@ -80,11 +80,25 @@ export default function CampaignStrategyPage({ params }: { params: Promise<{ id:
               </p>
             </div>
 
-            <div className="flex items-center gap-4 bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono text-xs">
+            <div className="flex flex-wrap items-center gap-4 bg-slate-950/80 p-3 rounded-xl border border-slate-800 font-mono text-xs">
               <div>
-                <span className="text-[10px] text-slate-500 block uppercase">Est. Commission</span>
+                <span className="text-[10px] text-slate-500 block uppercase">Comm. Rate</span>
                 <span className="font-bold text-emerald-400 text-sm">
                   {icp?.deal_metadata?.commission_rate_percent || 9.0}%
+                </span>
+              </div>
+              <div className="h-8 w-px bg-slate-800" />
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase">Est. Comm. / Sale</span>
+                <span className="font-bold text-emerald-300 text-sm">
+                  ₹{icp?.deal_metadata?.estimated_commission_rupees?.toFixed(2) || (icp?.deal_metadata?.effective_price ? ((icp.deal_metadata.effective_price * (icp.deal_metadata.commission_rate_percent || 9)) / 100).toFixed(2) : "53.91")}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-slate-800" />
+              <div>
+                <span className="text-[10px] text-slate-500 block uppercase">Sales to ₹10L</span>
+                <span className="font-bold text-amber-300 text-sm">
+                  {Math.ceil(1000000 / (icp?.deal_metadata?.estimated_commission_rupees || 53.91)).toLocaleString("en-IN")}
                 </span>
               </div>
               <div className="h-8 w-px bg-slate-800" />

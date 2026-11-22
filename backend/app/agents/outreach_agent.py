@@ -5,7 +5,10 @@ from app.core.llm import llm_client
 from app.core.deal_analyzer import (
     format_whatsapp_deal_post,
     format_telegram_deal_post,
+    format_reddit_deal_post,
+    format_x_deal_post,
     to_canonical_affiliate_url,
+    generate_channel_subtag,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,16 +86,24 @@ class OutreachAgent:
         if not draft.get("social_reply"):
             draft["social_reply"] = f"If you're looking for an alternative, check out {product_name}."
 
-        # Generate WhatsApp Broadcast and Telegram Alert messages
+        # Generate WhatsApp, Telegram, Reddit, and X deal distribution formats with unique ascsubtags
         deal_meta = icp.get("deal_metadata") or {}
         asin = deal_meta.get("asin") or "B09W2GFM7Y"
         deal_price = float(deal_meta.get("effective_price") or deal_meta.get("deal_price") or 599.0)
         mrp = float(deal_meta.get("mrp") or 1499.0)
         rating = float(deal_meta.get("rating") or 4.3)
         reviews_count = int(deal_meta.get("review_count") or 4500)
-        deal_url = deal_meta.get("canonical_affiliate_url") or to_canonical_affiliate_url(asin, subtag="lf-outreach")
+        campaign_id = lead.get("campaign_id") or icp.get("campaign_id")
+
+        wa_subtag = generate_channel_subtag("whatsapp", campaign_id=campaign_id, asin=asin)
+        tg_subtag = generate_channel_subtag("telegram", campaign_id=campaign_id, asin=asin)
+        rd_subtag = generate_channel_subtag("reddit", campaign_id=campaign_id, asin=asin)
+        x_subtag = generate_channel_subtag("x", campaign_id=campaign_id, asin=asin)
+
+        deal_url = to_canonical_affiliate_url(asin, subtag=wa_subtag)
 
         draft["deal_affiliate_url"] = deal_url
+        draft["subtag"] = wa_subtag
         draft["whatsapp_message"] = format_whatsapp_deal_post(
             title=product_name,
             deal_price=deal_price,
@@ -100,15 +111,35 @@ class OutreachAgent:
             asin=asin,
             rating=rating,
             reviews_count=reviews_count,
-            subtag="lf-wa",
+            subtag=wa_subtag,
+            campaign_id=campaign_id,
         )
         draft["telegram_message"] = format_telegram_deal_post(
             title=product_name,
             deal_price=deal_price,
             mrp=mrp,
             asin=asin,
-            subtag="lf-tg",
+            subtag=tg_subtag,
+            campaign_id=campaign_id,
         )
+
+        if is_deal_mode:
+            draft["social_reply"] = format_reddit_deal_post(
+                title=product_name,
+                deal_price=deal_price,
+                mrp=mrp,
+                asin=asin,
+                subtag=rd_subtag,
+                campaign_id=campaign_id,
+            )
+            draft["linkedin_dm"] = format_x_deal_post(
+                title=product_name,
+                deal_price=deal_price,
+                mrp=mrp,
+                asin=asin,
+                subtag=x_subtag,
+                campaign_id=campaign_id,
+            )
 
         draft["channel"] = "whatsapp" if is_deal_mode else "email"
         return draft

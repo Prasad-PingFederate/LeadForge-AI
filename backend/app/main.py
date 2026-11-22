@@ -7,6 +7,7 @@ from app.config import settings
 from app.db.base import Base
 from app.db.session import engine
 from app.api.router import api_router
+from app.api.revenue import router as revenue_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +45,7 @@ app.add_middleware(
 
 # Mount API
 app.include_router(api_router)
+app.include_router(revenue_router)
 
 
 @app.get("/", tags=["Health"])

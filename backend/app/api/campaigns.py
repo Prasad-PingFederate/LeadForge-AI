@@ -153,6 +153,7 @@ async def run_campaign_workflow(campaign_id: str, target_url: str, description: 
                         whatsapp_message=draft.get("whatsapp_message"),
                         telegram_message=draft.get("telegram_message"),
                         deal_affiliate_url=draft.get("deal_affiliate_url"),
+                        subtag=draft.get("subtag"),
                         status="draft",
                     )
                     session.add(msg)

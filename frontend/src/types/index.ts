@@ -10,9 +10,21 @@ export interface ICPData {
   negative_keywords?: string[];
   deal_metadata?: {
     asin?: string;
+    title?: string;
+    brand?: string;
+    category?: string;
     canonical_affiliate_url?: string;
     commission_rate_percent?: number;
+    estimated_commission_rupees?: number;
+    effective_price?: number;
+    mrp?: number;
+    discount_pct?: number;
+    savings_inr?: number;
     is_impulse_sweet_spot?: boolean;
+    is_zero_roi?: boolean;
+    rating?: number;
+    review_count?: number;
+    image_url?: string;
   };
 }
 
@@ -97,6 +109,8 @@ export interface OutreachMessage {
   whatsapp_message?: string;
   telegram_message?: string;
   deal_affiliate_url?: string;
+  subtag?: string;
+  clicks_count?: number;
   status: "draft" | "approved" | "sent" | "sent_dry_run" | "replied";
   reply_sentiment?: string;
   sent_at?: string;
@@ -139,4 +153,43 @@ export interface ProgressState {
   all_logs: string[];
   completed: boolean;
   error?: string | null;
+}
+
+export interface RevenueSummary {
+  target_commission_inr: number;
+  target_days: number;
+  total_posts_generated: number;
+  total_clicks: number;
+  clicks_by_channel: {
+    whatsapp: number;
+    telegram: number;
+    reddit: number;
+    x: number;
+    other: number;
+  };
+  active_campaigns_count: number;
+  estimated_commission_pool_inr: number;
+  average_commission_per_sale_inr: number;
+  total_sales_needed_for_10_lakh: number;
+  recent_clicks: Array<{
+    id: string;
+    asin: string;
+    channel: string;
+    subtag: string;
+    created_at: string;
+  }>;
+  recent_deals: Array<{
+    campaign_id: string;
+    name: string;
+    asin: string;
+    category: string;
+    deal_price: number;
+    mrp: number;
+    discount_pct: number;
+    commission_rate_percent: number;
+    estimated_commission_rupees: number;
+    sales_needed_for_10_lakh: number;
+    subtag: string;
+    created_at: string;
+  }>;
 }

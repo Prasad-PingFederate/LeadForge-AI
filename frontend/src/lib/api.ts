@@ -1,4 +1,4 @@
-import { Campaign, CampaignDetail, Lead, OutreachMessage, ProgressState } from "@/types";
+import { Campaign, CampaignDetail, Lead, OutreachMessage, ProgressState, RevenueSummary } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
@@ -172,4 +172,26 @@ export async function fetchLiveDeals(params: {
     return { deals: [], count: 0, total_available: 0 };
   }
   return res.json();
+}
+
+export async function fetchRevenueSummary(): Promise<RevenueSummary> {
+  const res = await fetch(`${API_BASE}/revenue/summary`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch revenue summary");
+  }
+  return res.json();
+}
+
+export async function trackDealClick(payload: {
+  asin: string;
+  channel: string;
+  subtag?: string;
+  campaign_id?: string;
+  outreach_id?: string;
+}): Promise<void> {
+  await fetch(`${API_BASE}/deals/click`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
 }

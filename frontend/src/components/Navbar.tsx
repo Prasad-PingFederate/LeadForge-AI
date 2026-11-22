@@ -18,8 +18,16 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-6 text-sm">
-          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-4 sm:gap-6 text-sm">
+          <Link
+            href="/admin"
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20 transition-all shadow-sm"
+          >
+            <span>💰</span>
+            <span>₹10L Revenue Tracker</span>
+          </Link>
+
+          <div className="hidden md:flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-3 py-1.5 rounded-full">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Zero Hallucination Guaranteed</span>
           </div>

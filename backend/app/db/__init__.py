@@ -7,6 +7,7 @@ from app.db.models import (
     Lead,
     OutreachMessage,
     SuppressionList,
+    DealClick,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "Lead",
     "OutreachMessage",
     "SuppressionList",
+    "DealClick",
 ]

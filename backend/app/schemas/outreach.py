@@ -14,6 +14,8 @@ class OutreachMessageBase(BaseModel):
     whatsapp_message: Optional[str] = None
     telegram_message: Optional[str] = None
     deal_affiliate_url: Optional[str] = None
+    subtag: Optional[str] = None
+    clicks_count: int = 0
     status: str = "draft"
 
 
@@ -27,6 +29,8 @@ class OutreachUpdate(BaseModel):
     whatsapp_message: Optional[str] = None
     telegram_message: Optional[str] = None
     deal_affiliate_url: Optional[str] = None
+    subtag: Optional[str] = None
+    clicks_count: Optional[int] = None
     status: Optional[str] = None
 
 

@@ -111,6 +111,8 @@ def upgrade() -> None:
         sa.Column('whatsapp_message', sa.Text(), nullable=True),
         sa.Column('telegram_message', sa.Text(), nullable=True),
         sa.Column('deal_affiliate_url', sa.String(length=1024), nullable=True),
+        sa.Column('subtag', sa.String(length=100), nullable=True),
+        sa.Column('clicks_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('status', sa.String(length=50), nullable=False),
         sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
@@ -135,7 +137,29 @@ def upgrade() -> None:
     op.create_index('ix_suppression_email', 'suppression_list', ['email'], unique=False)
 
 
+    op.create_table(
+        'deal_clicks',
+        sa.Column('id', sa.String(length=36), nullable=False),
+        sa.Column('campaign_id', sa.String(length=36), nullable=True),
+        sa.Column('outreach_id', sa.String(length=36), nullable=True),
+        sa.Column('asin', sa.String(length=20), nullable=False),
+        sa.Column('channel', sa.String(length=50), nullable=False, server_default='whatsapp'),
+        sa.Column('subtag', sa.String(length=100), nullable=False),
+        sa.Column('target_url', sa.String(length=1024), nullable=False),
+        sa.Column('ip_hash', sa.String(length=64), nullable=True),
+        sa.Column('referrer', sa.String(length=512), nullable=True),
+        sa.Column('user_agent', sa.String(length=512), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_deal_clicks_subtag', 'deal_clicks', ['subtag'], unique=False)
+    op.create_index('ix_deal_clicks_asin', 'deal_clicks', ['asin'], unique=False)
+    op.create_index('ix_deal_clicks_channel', 'deal_clicks', ['channel'], unique=False)
+    op.create_index('ix_deal_clicks_campaign_id', 'deal_clicks', ['campaign_id'], unique=False)
+
+
 def downgrade() -> None:
+    op.drop_table('deal_clicks')
     op.drop_table('suppression_list')
     op.drop_table('outreach_messages')
     op.drop_table('leads')
