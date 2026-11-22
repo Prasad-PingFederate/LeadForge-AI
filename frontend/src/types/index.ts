@@ -208,11 +208,17 @@ export interface RevenueSummary {
     sales_needed_for_10_lakh: number;
     subtag: string;
     created_at: string;
+    loot_score?: number;
+    loot_badge?: string;
+    is_mega_loot?: boolean;
     quality_verdict?: {
       verdict: string;
       verdict_badge: string;
       reason: string;
       why_it_converts?: string;
+      loot_score?: number;
+      loot_badge?: string;
+      is_mega_loot?: boolean;
       waterfall_enrichment?: {
         tier1_pricing_yield: {
           price: number;
@@ -263,6 +269,30 @@ export interface RevenueSummary {
     step2_evening: number;
     step3_scarcity: number;
     unspecified: number;
+  };
+  clicks_by_device?: {
+    mobile_android: number;
+    mobile_ios: number;
+    desktop_windows: number;
+    desktop_mac: number;
+    other: number;
+  };
+  clicks_by_app?: {
+    whatsapp: number;
+    telegram: number;
+    reddit: number;
+    x: number;
+    browser: number;
+  };
+  goal_progress?: {
+    target_commission_inr: number;
+    target_days: number;
+    est_realized_commission_inr: number;
+    progress_percent: number;
+    daily_target_inr: number;
+    daily_clicks_target: number;
+    projected_90d_inr: number;
+    days_remaining: number;
   };
 }
 
@@ -318,6 +348,7 @@ export interface ActivityFeedItem {
   title: string;
   channel: string;
   channel_badge: string;
+  device_badge?: string;
   step_label?: string;
   subtag: string;
   target_url: string;
@@ -325,4 +356,27 @@ export interface ActivityFeedItem {
   created_at: string;
   deal_price: number;
   est_commission_rupees: number;
+}
+
+export interface MultiAngleCopyItem {
+  key: string;
+  label: string;
+  headline: string;
+  message: string;
+  url: string;
+  subtag: string;
+}
+
+export interface MultiAngleCopyResponse {
+  status: string;
+  asin: string;
+  channel: string;
+  loot_badge: string;
+  loot_score: number;
+  angles: {
+    urgency_loot: MultiAngleCopyItem;
+    savings_math: MultiAngleCopyItem;
+    social_proof: MultiAngleCopyItem;
+    daily_utility: MultiAngleCopyItem;
+  };
 }

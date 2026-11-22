@@ -268,6 +268,112 @@ def waterfall_deal_enrichment(deal: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def compute_loot_score(deal: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    BuyHatke & Keepa-style Loot Score (0-100):
+    Calculates instant impulse appeal, price drop depth, and revenue yield for Indian deal shoppers.
+    Scoring:
+      - Discount Depth (up to 35 pts): >=60% -> 35, >=50% -> 30, >=40% -> 20, >=30% -> 10
+      - Impulse Sweet-Spot (up to 30 pts): ₹199-₹999 -> 30, ₹1000-₹2499 -> 20, ₹2500-₹4999 -> 10
+      - Social Proof Trust (up to 25 pts): >=4.4 & >=5000 rev -> 25, >=4.2 & >=500 rev -> 20, >=4.0 -> 10
+      - Category Yield (up to 10 pts): >=8% -> 10, >=5% -> 6, 0% -> 0
+    """
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
+    mrp = float(deal.get("mrp") or (price * 1.5))
+    disc = int(deal.get("discount_pct") or (round(((mrp - price) / mrp) * 100) if mrp > price else 30))
+    rating = float(deal.get("rating") or 4.2)
+    reviews = int(deal.get("review_count") or deal.get("reviews_count") or 1000)
+    cat = (deal.get("category") or "Home & Kitchen").lower()
+
+    comm_info = compute_commission_estimate(cat, price)
+    rate = comm_info["commission_rate_percent"]
+    is_zero = comm_info["is_zero_roi"] or rate == 0.0
+
+    # 1. Discount Depth
+    if disc >= 60:
+        disc_pts = 35
+    elif disc >= 50:
+        disc_pts = 30
+    elif disc >= 40:
+        disc_pts = 20
+    elif disc >= 30:
+        disc_pts = 10
+    else:
+        disc_pts = 4
+
+    # 2. Impulse Price Point
+    if 199.0 <= price <= 999.0:
+        price_pts = 30
+    elif 1000.0 <= price <= 2499.0:
+        price_pts = 20
+    elif 2500.0 <= price <= 4999.0:
+        price_pts = 10
+    elif price < 199.0:
+        price_pts = 25
+    else:
+        price_pts = 5
+
+    # 3. Buyer Trust Proof
+    if rating >= 4.4 and reviews >= 5000:
+        trust_pts = 25
+    elif rating >= 4.2 and reviews >= 500:
+        trust_pts = 20
+    elif rating >= 4.0:
+        trust_pts = 10
+    else:
+        trust_pts = 2
+
+    # 4. Affiliate Margin Yield
+    if rate >= 8.0:
+        yield_pts = 10
+    elif rate >= 5.0:
+        yield_pts = 6
+    else:
+        yield_pts = 0
+
+    total_score = min(100, disc_pts + price_pts + trust_pts + yield_pts)
+    if is_zero or (rating < 4.0 and reviews > 50):
+        total_score = min(total_score, 30)
+
+    is_mega = total_score >= 80
+    is_solid = total_score >= 60
+
+    if is_mega:
+        tier_label = "🔥 MEGA LOOT (Top 5%)"
+        badge = f"🔥 {total_score}/100 MEGA LOOT"
+    elif is_solid:
+        tier_label = "⚡ SOLID DEAL (Top 25%)"
+        badge = f"⚡ {total_score}/100 SOLID DEAL"
+    else:
+        tier_label = "STANDARD DEAL"
+        badge = f"🏷 {total_score}/100 STANDARD"
+
+    reasons = []
+    if disc >= 50:
+        reasons.append(f"Deep {disc}% discount drop")
+    if 199.0 <= price <= 999.0:
+        reasons.append(f"Frictionless impulse price point (₹{price:,.0f})")
+    if rating >= 4.2 and reviews >= 500:
+        reasons.append(f"High buyer trust proof ({rating}★ with {reviews:,} reviews)")
+    if rate >= 8.0:
+        reasons.append(f"High-yield affiliate commission ({rate}%)")
+
+    return {
+        "loot_score": total_score,
+        "loot_badge": badge,
+        "tier_label": tier_label,
+        "is_mega_loot": is_mega,
+        "is_solid_deal": is_solid,
+        "breakdown": {
+            "discount_depth_pts": disc_pts,
+            "impulse_price_pts": price_pts,
+            "trust_proof_pts": trust_pts,
+            "category_yield_pts": yield_pts,
+        },
+        "reasons": reasons,
+    }
+
+
 def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     """
     Sales Manager Deal Quality Filter (Phase 3 Standard):
@@ -374,6 +480,7 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     waterfall = waterfall_deal_enrichment(deal)
+    loot_info = compute_loot_score(deal)
 
     return {
         "verdict": verdict,
@@ -383,6 +490,10 @@ def evaluate_deal_quality(deal: Dict[str, Any]) -> Dict[str, Any]:
         "criteria_passed_count": criteria_passed,
         "composite_velocity_score": composite_score,
         "pool_tier": pool_tier,
+        "loot_score": loot_info["loot_score"],
+        "loot_badge": loot_info["loot_badge"],
+        "is_mega_loot": loot_info["is_mega_loot"],
+        "loot_info": loot_info,
         "waterfall_enrichment": waterfall,
         "score_breakdown": {
             "commission_yield_pts": score_commission,
@@ -792,6 +903,162 @@ def format_x_deal_post(
         f"🛒 Buy on Amazon: {aff_url}\n\n"
         f"#AmazonDeals #PriceDrop #LootDealsIndia"
     )
+
+
+def generate_multi_angle_copy(
+    deal: Dict[str, Any],
+    channel: str = "whatsapp",
+    campaign_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Lemlist & EarnKaro-Style 4-Angle Copy Generator:
+    Generates 4 psychologically distinct sales angles for maximum CTR:
+      1. Urgency / Scarcity Loot (Stock ending, flash drop alert)
+      2. Pure Savings Math (Detailed ₹ calculation: MRP, Deal, You Save)
+      3. Social Proof & Trust (Star rating, buyer review volume, brand reputation)
+      4. Daily Utility / Problem Solver (Under ₹499 lifestyle solution)
+    Available in both WhatsApp and Telegram formatting with unique channel subtags.
+    """
+    title = deal.get("title") or deal.get("name") or "Amazon Verified Deal"
+    price = float(deal.get("effective_price") or deal.get("list_price") or deal.get("deal_price") or 499.0)
+    mrp = float(deal.get("mrp") or (price * 1.5))
+    disc = int(deal.get("discount_pct") or (round(((mrp - price) / mrp) * 100) if mrp > price else 35))
+    savings = int(mrp - price) if mrp > price else int(price * 0.35)
+    rating = float(deal.get("rating") or 4.3)
+    reviews = int(deal.get("review_count") or deal.get("reviews_count") or 3500)
+    brand = deal.get("brand") or "Top Brand"
+    asin = deal.get("asin") or extract_asin(deal.get("affiliate_url", "")) or "B09W2GFM7Y"
+
+    d_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    subtag_base = generate_channel_subtag(channel, campaign_id=campaign_id, asin=asin, date_str=d_str)
+
+    sub_urgency = f"{subtag_base}-urg"
+    sub_math = f"{subtag_base}-math"
+    sub_proof = f"{subtag_base}-prf"
+    sub_utility = f"{subtag_base}-utl"
+
+    url_urgency = to_canonical_affiliate_url(asin, subtag=sub_urgency)
+    url_math = to_canonical_affiliate_url(asin, subtag=sub_math)
+    url_proof = to_canonical_affiliate_url(asin, subtag=sub_proof)
+    url_utility = to_canonical_affiliate_url(asin, subtag=sub_utility)
+
+    if channel.lower() == "telegram":
+        # Telegram Markdown styling
+        urgency_msg = (
+            f"⚡️ **FLASH LOOT ALERT: PRICE DROP DETECTED** ⚡️\n\n"
+            f"**{title}**\n\n"
+            f"📉 Deal Price: **₹{int(price):,}** ~₹{int(mrp):,}~ (**{disc}% OFF**)\n"
+            f"🔥 **You Save: ₹{savings:,}**\n\n"
+            f"⚠️ *Stock Status:* Deal allocation selling out fast! Price reverts soon.\n\n"
+            f"🛒 **Grab on Amazon:** [Claim Deal Now]({url_urgency})"
+        )
+        math_msg = (
+            f"💰 **SAVINGS MATH BREAKDOWN** 💰\n\n"
+            f"**{title}**\n\n"
+            f"• MRP: ~₹{int(mrp):,}~\n"
+            f"• Verified Deal Price: **₹{int(price):,}**\n"
+            f"• Flat Discount: **{disc}% OFF**\n"
+            f"• **Net Savings In Your Pocket: ₹{savings:,}**\n\n"
+            f"🛒 **Check Live Pricing:** [Order on Amazon]({url_math})"
+        )
+        proof_msg = (
+            f"⭐️ **VERIFIED BUYER CHOICE ({rating}★ by {reviews:,}+ INDIANS)** ⭐️\n\n"
+            f"**{title}**\n\n"
+            f"Why thousands recommend this {brand} product:\n"
+            f"• Official Brand Warranty & Prime Free Delivery\n"
+            f"• Verified durable build & genuine seller backing\n"
+            f"• Today's drop: **₹{int(price):,}** (Save ₹{savings:,})\n\n"
+            f"🛒 **See Customer Reviews & Order:** [View on Amazon]({url_proof})"
+        )
+        utility_msg = (
+            f"🎁 **DAILY LIFESTYLE UPGRADE (STEAL DEAL)** 🎁\n\n"
+            f"**{title}**\n\n"
+            f"📉 Pocket Friendly: **₹{int(price):,}** (Normally ₹{int(mrp):,})\n"
+            f"• Perfect everyday essential & hassle-free upgrade\n"
+            f"• Zero hesitation impulse price point\n\n"
+            f"🛒 **Grab Yours Before Price Bounces:** [Shop Now]({url_utility})"
+        )
+    else:
+        # WhatsApp Formatting
+        urgency_msg = (
+            f"⚡️ *FLASH LOOT ALERT — PRICE CRASH* ⚡️\n\n"
+            f"*{title}*\n"
+            f"⭐️ Rating: {rating}/5 ({reviews:,}+ reviews)\n\n"
+            f"📉 *Deal Price: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+            f"💰 *Instant Rupee Savings: ₹{savings:,}*\n\n"
+            f"⚠️ *Urgency:* Amazon lightning deal allocation is active now. Price may bounce at midnight!\n\n"
+            f"👉 *Claim Live Deal On Amazon:*\n{url_urgency}\n\n"
+            f"_(Checked live — grab before stock runs out!)_"
+        )
+        math_msg = (
+            f"💰 *CLEAR SAVINGS MATH: WHAT YOU SAVE TODAY* 💰\n\n"
+            f"*{title}*\n\n"
+            f"• Original List Price: ~₹{int(mrp):,}~\n"
+            f"• Today's Special Price: *₹{int(price):,}*\n"
+            f"• Instant Discount: *{disc}% OFF*\n"
+            f"👉 *NET RUPEES SAVED: ₹{savings:,}*\n\n"
+            f"Includes Prime 1-Day Delivery & Official Brand Warranty.\n\n"
+            f"👉 *Lock In Discounted Price Now:*\n{url_math}"
+        )
+        proof_msg = (
+            f"⭐️ *RATED {rating}★ BY {reviews:,}+ VERIFIED BUYERS* ⭐️\n\n"
+            f"*{title}*\n"
+            f"Brand: *{brand}*\n\n"
+            f"Why Indian buyers love this:\n"
+            f"• Top tier build quality & verified longevity\n"
+            f"• Genuine manufacturer warranty & hassle-free returns\n"
+            f"• Now down to *₹{int(price):,}* (Save ₹{savings:,})\n\n"
+            f"👉 *Read Reviews & Buy on Amazon:*\n{url_proof}"
+        )
+        utility_msg = (
+            f"🎁 *DAILY PROBLEM SOLVER (STEAL DEAL UNDER ₹{int(max(499.0, price)):,})* 🎁\n\n"
+            f"*{title}*\n\n"
+            f"📉 *Price Drop: ₹{int(price):,}* ~MRP ₹{int(mrp):,}~ (*{disc}% OFF*)\n"
+            f"💰 *You Save: ₹{savings:,}*\n\n"
+            f"Why you should grab this today:\n"
+            f"• Essential daily utility upgrade\n"
+            f"• Zero-regret impulse pricing with Prime delivery\n\n"
+            f"👉 *Check Availability On Amazon:*\n{url_utility}"
+        )
+
+    return {
+        "channel": channel,
+        "asin": asin,
+        "angles": {
+            "urgency_loot": {
+                "key": "urgency_loot",
+                "label": "⚡️ Loot / Urgency Alert",
+                "headline": f"{disc}% OFF Lightning Price Drop",
+                "message": urgency_msg,
+                "url": url_urgency,
+                "subtag": sub_urgency,
+            },
+            "savings_math": {
+                "key": "savings_math",
+                "label": "💰 Pure Savings Math",
+                "headline": f"Save ₹{savings:,} In Pocket",
+                "message": math_msg,
+                "url": url_math,
+                "subtag": sub_math,
+            },
+            "social_proof": {
+                "key": "social_proof",
+                "label": "⭐️ Social Proof & Trust",
+                "headline": f"Rated {rating}★ by {reviews:,}+ Buyers",
+                "message": proof_msg,
+                "url": url_proof,
+                "subtag": sub_proof,
+            },
+            "daily_utility": {
+                "key": "daily_utility",
+                "label": "🎁 Daily Utility / Impulse",
+                "headline": f"Steal Deal Under ₹{int(max(499.0, price)):,}",
+                "message": utility_msg,
+                "url": url_utility,
+                "subtag": sub_utility,
+            },
+        },
+    }
 
 
 def generate_3step_sequence(

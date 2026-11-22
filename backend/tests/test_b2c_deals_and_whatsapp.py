@@ -583,4 +583,119 @@ async def test_revenue_clicks_by_step_summary():
         assert "clicks_by_step" in data
         assert "step1_morning" in data["clicks_by_step"]
         assert "step2_evening" in data["clicks_by_step"]
+
+
+@pytest.mark.asyncio
+async def test_buyhatke_loot_score_calculation():
+    from app.core.deal_analyzer import compute_loot_score, evaluate_deal_quality
+
+    # High impulse, deep discount loot deal
+    deal = {
+        "title": "Pigeon 1.8L Stainless Steel Electric Kettle",
+        "category": "Home & Kitchen",
+        "effective_price": 599.0,
+        "mrp": 1499.0,
+        "discount_pct": 60,
+        "rating": 4.4,
+        "review_count": 18200,
+    }
+    loot = compute_loot_score(deal)
+    assert loot["loot_score"] >= 80
+    assert loot["is_mega_loot"] is True
+    assert "MEGA LOOT" in loot["loot_badge"]
+    assert "reasons" in loot
+    assert len(loot["reasons"]) >= 3
+
+    # Gated quality check includes loot score
+    quality = evaluate_deal_quality(deal)
+    assert "loot_score" in quality
+    assert "loot_badge" in quality
+    assert quality["is_mega_loot"] is True
+
+
+@pytest.mark.asyncio
+async def test_lemlist_multi_angle_copy_generation():
+    from app.core.deal_analyzer import generate_multi_angle_copy
+
+    deal = {
+        "asin": "B002MPPTB8",
+        "title": "Hawkins Futura Hard Anodised Pressure Cooker 3L",
+        "brand": "Hawkins",
+        "category": "Home & Kitchen",
+        "effective_price": 2499.0,
+        "mrp": 3350.0,
+        "discount_pct": 25,
+        "rating": 4.4,
+        "review_count": 28400,
+    }
+    res_wa = generate_multi_angle_copy(deal, channel="whatsapp")
+    assert "angles" in res_wa
+    angles = res_wa["angles"]
+    assert "urgency_loot" in angles
+    assert "savings_math" in angles
+    assert "social_proof" in angles
+    assert "daily_utility" in angles
+
+    assert "FLASH LOOT" in angles["urgency_loot"]["message"]
+    assert "SAVINGS MATH" in angles["savings_math"]["message"]
+    assert "VERIFIED BUYER" in angles["social_proof"]["message"]
+    assert "STEAL DEAL" in angles["daily_utility"]["message"]
+
+    # Test Telegram format
+    res_tg = generate_multi_angle_copy(deal, channel="telegram")
+    assert "**" in res_tg["angles"]["urgency_loot"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_deals_angles_and_dispatch_endpoints():
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Angles endpoint
+        resp_angles = await client.get("/api/deals/B002MPPTB8/angles?channel=whatsapp")
+        assert resp_angles.status_code == 200
+        data_a = resp_angles.json()
+        assert data_a["status"] == "success"
+        assert "angles" in data_a
+        assert "urgency_loot" in data_a["angles"]
+
+        # 2. Dispatch simulated Telegram alert
+        resp_disp = await client.post("/api/deals/dispatch-telegram", json={
+            "asin": "B002MPPTB8",
+            "step_number": 1,
+            "channel_id": "@dealsforindia"
+        })
+        assert resp_disp.status_code == 200
+        data_d = resp_disp.json()
+        assert data_d["status"] == "dispatched_simulated"
+        assert "n8n_curl_example" in data_d
+
+        # 3. Daily deals outbox
+        resp_outbox = await client.get("/api/deals/outbox/daily")
+        assert resp_outbox.status_code == 200
+        data_o = resp_outbox.json()
+        assert "cadence" in data_o
+        assert "morning_hero" in data_o["cadence"]
+        assert "evening_impulse" in data_o["cadence"]
+        assert "scarcity_closer" in data_o["cadence"]
+
+
+@pytest.mark.asyncio
+async def test_device_and_app_telemetry_summary():
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/revenue/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "clicks_by_device" in data
+        assert "mobile_android" in data["clicks_by_device"]
+        assert "clicks_by_app" in data
+        assert "whatsapp" in data["clicks_by_app"]
+        assert "goal_progress" in data
+        assert data["goal_progress"]["target_commission_inr"] == 1000000.0
         assert "step3_scarcity" in data["clicks_by_step"]

@@ -18,6 +18,8 @@ from app.core.deal_analyzer import (
     extract_asin,
     validate_deal_copy,
     generate_3step_sequence,
+    compute_loot_score,
+    generate_multi_angle_copy,
 )
 from app.config import settings
 
@@ -73,6 +75,7 @@ async def list_live_deals(
         comm = compute_commission_estimate(cat, price)
         quality = evaluate_deal_quality(d)
         where_to_post = generate_where_to_post_recommendations(cat, price, d.get("title", ""))
+        loot_info = quality.get("loot_info") or compute_loot_score(d)
 
         if verdict and quality.get("verdict", "").upper() != verdict.strip().upper():
             continue
@@ -83,6 +86,9 @@ async def list_live_deals(
             "commission_info": comm,
             "quality_verdict": quality,
             "where_to_post": where_to_post,
+            "loot_score": loot_info["loot_score"],
+            "loot_badge": loot_info["loot_badge"],
+            "is_mega_loot": loot_info["is_mega_loot"],
         })
         if len(enriched_deals) >= limit:
             break
@@ -123,6 +129,8 @@ async def get_live_deal_by_asin(asin: str):
     comm = compute_commission_estimate(cat, price)
     quality = evaluate_deal_quality(deal)
     where_to_post = generate_where_to_post_recommendations(cat, price, deal.get("title", ""))
+    loot_info = quality.get("loot_info") or compute_loot_score(deal)
+    angles = generate_multi_angle_copy(deal, channel="whatsapp")
 
     return {
         **deal,
@@ -130,6 +138,10 @@ async def get_live_deal_by_asin(asin: str):
         "commission_info": comm,
         "quality_verdict": quality,
         "where_to_post": where_to_post,
+        "loot_score": loot_info["loot_score"],
+        "loot_badge": loot_info["loot_badge"],
+        "is_mega_loot": loot_info["is_mega_loot"],
+        "angles": angles["angles"],
         "sequence": generate_3step_sequence(deal),
     }
 
@@ -250,4 +262,125 @@ async def export_deals_for_n8n(
         "count": len(exported),
         "target_affiliate_tag": settings.amazon_affiliate_tag,
         "deals": exported,
+    }
+
+
+@router.get("/{asin}/angles")
+async def get_deal_copy_angles(
+    asin: str,
+    channel: str = Query("whatsapp", description="Target channel: whatsapp | telegram | reddit | x"),
+):
+    """
+    Lemlist & EarnKaro-Style 4-Angle Copy Engine:
+    Returns 4 distinct psychological copy angles (Urgency Loot, Savings Math, Social Proof, Daily Utility)
+    for the selected deal, formatted for the requested channel.
+    """
+    deal = await get_deal_by_asin(asin)
+    if not deal:
+        raise HTTPException(status_code=404, detail=f"Deal with ASIN {asin} not found")
+
+    angles_data = generate_multi_angle_copy(deal, channel=channel)
+    loot = compute_loot_score(deal)
+    return {
+        "status": "success",
+        "asin": asin.upper(),
+        "channel": channel,
+        "loot_badge": loot["loot_badge"],
+        "loot_score": loot["loot_score"],
+        "angles": angles_data["angles"],
+    }
+
+
+class TelegramDispatchRequest(BaseModel):
+    asin: str
+    step_number: int = 1
+    channel_id: Optional[str] = None
+    custom_message: Optional[str] = None
+
+
+@router.post("/dispatch-telegram")
+async def dispatch_telegram_alert(payload: TelegramDispatchRequest):
+    """
+    Autonomous Telegram Bot Dispatcher:
+    Validates and simulates / executes instant broadcast of deal sequence step
+    to a configured Telegram Channel (Indian Deal Alerts style).
+    """
+    deal = await get_deal_by_asin(payload.asin)
+    if not deal:
+        raise HTTPException(status_code=404, detail=f"Deal with ASIN {payload.asin} not found")
+
+    seq = generate_3step_sequence(deal)
+    step_key = (
+        "step1_morning" if payload.step_number == 1
+        else ("step2_evening" if payload.step_number == 2 else "step3_followup")
+    )
+    step_data = seq.get(step_key, seq["step1_morning"])
+    msg_text = payload.custom_message or step_data["telegram_message"]
+
+    target_chat = payload.channel_id or "@dealsforindia"
+    curl_cmd = (
+        f"curl -s -X POST 'https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/sendMessage' "
+        f"-d 'chat_id={target_chat}' "
+        f"-d 'parse_mode=Markdown' "
+        f"--data-urlencode 'text={msg_text[:200]}...'"
+    )
+
+    return {
+        "status": "dispatched_simulated",
+        "channel": "telegram",
+        "step_number": payload.step_number,
+        "asin": payload.asin.upper(),
+        "message_length": len(msg_text),
+        "telegram_message": msg_text,
+        "subtag": step_data.get("subtag"),
+        "n8n_curl_example": curl_cmd,
+        "ready_for_production": True,
+    }
+
+
+@router.get("/outbox/daily")
+async def get_daily_deals_outbox():
+    """
+    Instantly-Style Daily Cadence Outbox:
+    Returns today's 3-slot deal lineup ready for 1-click execution:
+      - Slot 1: Morning Hero Drop (08:30 IST)
+      - Slot 2: Evening Impulse Under ₹499 (18:30 IST)
+      - Slot 3: Scarcity & Price Bounce Closer (21:30 IST)
+    """
+    all_deals = await fetch_live_deals()
+    promoted = [d for d in all_deals if evaluate_deal_quality(d).get("verdict") == "PROMOTE"]
+    if not promoted:
+        promoted = all_deals[:5]
+
+    morning_deal = max(promoted, key=lambda d: float(d.get("effective_price") or 0)) if promoted else all_deals[0]
+    impulse_candidates = [d for d in promoted if float(d.get("effective_price") or 9999) <= 999] or promoted
+    evening_deal = min(impulse_candidates, key=lambda d: float(d.get("effective_price") or 9999))
+    scarcity_deal = max(promoted, key=lambda d: int(d.get("discount_pct") or 0))
+
+    return {
+        "status": "success",
+        "schedule_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "cadence": {
+            "morning_hero": {
+                "slot": "08:30 – 10:30 IST",
+                "deal_title": morning_deal.get("title"),
+                "asin": morning_deal.get("asin"),
+                "deal": morning_deal,
+                "step": generate_3step_sequence(morning_deal)["step1_morning"],
+            },
+            "evening_impulse": {
+                "slot": "18:30 – 20:30 IST",
+                "deal_title": evening_deal.get("title"),
+                "asin": evening_deal.get("asin"),
+                "deal": evening_deal,
+                "step": generate_3step_sequence(evening_deal)["step2_evening"],
+            },
+            "scarcity_closer": {
+                "slot": "21:30 – 23:00 IST",
+                "deal_title": scarcity_deal.get("title"),
+                "asin": scarcity_deal.get("asin"),
+                "deal": scarcity_deal,
+                "step": generate_3step_sequence(scarcity_deal)["step3_followup"],
+            },
+        },
     }

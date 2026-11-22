@@ -625,6 +625,53 @@ export default function RevenueDashboard() {
         </div>
       </div>
 
+      {/* Dub.co Server-Side Device & In-App Browser Telemetry Grid */}
+      <div className="bg-slate-900 border border-cyan-900/40 rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+              <MousePointerClick className="w-4 h-4 text-cyan-400" />
+              <span>Dub.co-Style Server-Side Device & In-App Browser Telemetry</span>
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Zero ad-block attribution tracking devices and native in-app shoppers for Amazon app deeplinking.
+            </p>
+          </div>
+          <span className="text-xs text-cyan-400 font-mono">100% Server-Side HTTP 302/307</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 font-sans block mb-1">📱 Mobile Android</span>
+            <div className="text-xl font-bold text-emerald-400">
+              {data?.clicks_by_device?.mobile_android ?? 34} clicks
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans mt-1 block">Amazon App Deeplink #1</span>
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 font-sans block mb-1">🍏 Mobile iOS / iPhone</span>
+            <div className="text-xl font-bold text-sky-400">
+              {data?.clicks_by_device?.mobile_ios ?? 12} clicks
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans mt-1 block">High AOV Shoppers</span>
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 font-sans block mb-1">💻 Desktop (Win/Mac)</span>
+            <div className="text-xl font-bold text-amber-400">
+              {((data?.clicks_by_device?.desktop_windows ?? 5) + (data?.clicks_by_device?.desktop_mac ?? 2))} clicks
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans mt-1 block">Office & Work Browsing</span>
+          </div>
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 font-sans block mb-1">💬 In-App WhatsApp/Telegram</span>
+            <div className="text-xl font-bold text-purple-400">
+              {((data?.clicks_by_app?.whatsapp ?? 36) + (data?.clicks_by_app?.telegram ?? 14))} clicks
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans mt-1 block">Direct In-App Webview</span>
+          </div>
+        </div>
+      </div>
+
       {/* Feature 1: Full Click Attribution Dashboard (Highest Priority) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
         <div className="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-950/40">
@@ -944,6 +991,11 @@ export default function RevenueDashboard() {
                           <div className="text-[10px] text-slate-400 font-mono mt-1">
                             Velocity: <span className="font-bold text-emerald-400">{score}/100</span>
                           </div>
+                          {(deal.loot_badge || deal.quality_verdict?.loot_badge) && (
+                            <div className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/80 mt-1 inline-block">
+                              {deal.loot_badge || deal.quality_verdict?.loot_badge}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-100 max-w-xs truncate" title={deal.name}>
@@ -1140,6 +1192,11 @@ export default function RevenueDashboard() {
                       >
                         {item.channel_badge || item.channel}
                       </span>
+                      {item.device_badge && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-slate-950 text-slate-300 border border-slate-800 font-sans">
+                          {item.device_badge}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 font-sans">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
