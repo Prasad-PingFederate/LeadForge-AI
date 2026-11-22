@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -15,7 +15,7 @@ import {
   Flame,
   MessageCircle,
 } from "lucide-react";
-import { createCampaign } from "@/lib/api";
+import { createCampaign, fetchLiveDeals } from "@/lib/api";
 
 export default function Launchpad() {
   const router = useRouter();
@@ -25,6 +25,19 @@ export default function Launchpad() {
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liveDeals, setLiveDeals] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (mode === "b2c_deals" && liveDeals.length === 0) {
+      fetchLiveDeals({ limit: 4 })
+        .then((res) => {
+          if (res.deals && res.deals.length > 0) {
+            setLiveDeals(res.deals);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [mode, liveDeals.length]);
 
   const setPresetDeal = (url: string, presetName: string, desc: string) => {
     setMode("b2c_deals");
@@ -194,48 +207,73 @@ export default function Launchpad() {
             {mode === "b2c_deals" && (
               <div className="pt-2">
                 <span className="text-[11px] font-semibold text-slate-400 block mb-1.5 uppercase tracking-wider">
-                  Quick High-Commission Preset Deals:
+                  {liveDeals.length > 0 ? "Live Deals from BharatBazaro Feed:" : "Quick High-Commission Preset Deals:"}
                 </span>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPresetDeal(
-                        "https://www.amazon.in/dp/B09W2GFM7Y",
-                        "Pigeon 1.8L Electric Kettle Drop",
-                        "Home & Kitchen 9% commission, deal price ₹599 (60% off)"
-                      )
-                    }
-                    className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
-                  >
-                    🫖 Electric Kettle (₹599)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPresetDeal(
-                        "https://www.amazon.in/dp/B07VXYZ123",
-                        "Philips Digital Air Fryer 4.1L Drop",
-                        "Small Appliances 7% commission, ₹4,999 deal"
-                      )
-                    }
-                    className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
-                  >
-                    🍟 Air Fryer (₹4,999)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPresetDeal(
-                        "https://bharatbazaro.com",
-                        "BharatBazaro Live Impulse Steals",
-                        "Top-converting Home & Kitchen verified price drops"
-                      )
-                    }
-                    className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
-                  >
-                    🇮🇳 BharatBazaro Live Feed
-                  </button>
+                  {liveDeals.length > 0 ? (
+                    liveDeals.map((deal) => (
+                      <button
+                        key={deal.asin}
+                        type="button"
+                        onClick={() =>
+                          setPresetDeal(
+                            `https://www.amazon.in/dp/${deal.asin}`,
+                            deal.title.slice(0, 40),
+                            `${deal.category} deal at ₹${deal.effective_price} (${deal.discount_pct}% off, ${deal.commission_info?.commission_rate_percent || 9}% comm)`
+                          )
+                        }
+                        className="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-200 border border-emerald-800/60 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="text-emerald-400 font-bold">₹{deal.effective_price}</span>
+                        <span className="text-slate-300 truncate max-w-[140px]">{deal.title.split(" ")[0]} {deal.title.split(" ")[1]}</span>
+                        <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1 py-0.5 rounded border border-emerald-800/40">
+                          {deal.discount_pct}% OFF
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPresetDeal(
+                            "https://www.amazon.in/dp/B09W2GFM7Y",
+                            "Pigeon 1.8L Electric Kettle Drop",
+                            "Home & Kitchen 9% commission, deal price ₹599 (60% off)"
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                      >
+                        🫖 Electric Kettle (₹599)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPresetDeal(
+                            "https://www.amazon.in/dp/B07VXYZ123",
+                            "Philips Digital Air Fryer 4.1L Drop",
+                            "Small Appliances 7% commission, ₹4,999 deal"
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                      >
+                        🍟 Air Fryer (₹4,999)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPresetDeal(
+                            "https://bharatbazaro.com",
+                            "BharatBazaro Live Impulse Steals",
+                            "Top-converting Home & Kitchen verified price drops"
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-colors"
+                      >
+                        🇮🇳 BharatBazaro Live Feed
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

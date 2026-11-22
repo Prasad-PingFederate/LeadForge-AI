@@ -154,3 +154,22 @@ export async function addSuppression(data: { domain?: string; email?: string; re
     body: JSON.stringify(data),
   });
 }
+
+export async function fetchLiveDeals(params: {
+  category?: string;
+  max_price?: number;
+  limit?: number;
+  query?: string;
+} = {}): Promise<{ deals: any[]; count: number; total_available: number }> {
+  const q = new URLSearchParams();
+  if (params.category) q.set("category", params.category);
+  if (params.max_price) q.set("max_price", String(params.max_price));
+  if (params.limit) q.set("limit", String(params.limit));
+  if (params.query) q.set("query", params.query);
+
+  const res = await fetch(`${API_BASE}/deals/live?${q.toString()}`);
+  if (!res.ok) {
+    return { deals: [], count: 0, total_available: 0 };
+  }
+  return res.json();
+}

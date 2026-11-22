@@ -28,3 +28,4 @@ class TTLCache:
         self._cache.clear()
 
 global_cache = TTLCache()
+cache = global_cache

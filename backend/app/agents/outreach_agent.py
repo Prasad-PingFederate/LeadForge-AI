@@ -84,21 +84,28 @@ class OutreachAgent:
             draft["social_reply"] = f"If you're looking for an alternative, check out {product_name}."
 
         # Generate WhatsApp Broadcast and Telegram Alert messages
-        asin = icp.get("deal_metadata", {}).get("asin", "B09W2GFM7Y")
-        deal_url = to_canonical_affiliate_url(asin, subtag="lf-outreach")
+        deal_meta = icp.get("deal_metadata") or {}
+        asin = deal_meta.get("asin") or "B09W2GFM7Y"
+        deal_price = float(deal_meta.get("effective_price") or deal_meta.get("deal_price") or 599.0)
+        mrp = float(deal_meta.get("mrp") or 1499.0)
+        rating = float(deal_meta.get("rating") or 4.3)
+        reviews_count = int(deal_meta.get("review_count") or 4500)
+        deal_url = deal_meta.get("canonical_affiliate_url") or to_canonical_affiliate_url(asin, subtag="lf-outreach")
 
         draft["deal_affiliate_url"] = deal_url
         draft["whatsapp_message"] = format_whatsapp_deal_post(
             title=product_name,
-            deal_price=599.0,
-            mrp=1499.0,
+            deal_price=deal_price,
+            mrp=mrp,
             asin=asin,
+            rating=rating,
+            reviews_count=reviews_count,
             subtag="lf-wa",
         )
         draft["telegram_message"] = format_telegram_deal_post(
             title=product_name,
-            deal_price=599.0,
-            mrp=1499.0,
+            deal_price=deal_price,
+            mrp=mrp,
             asin=asin,
             subtag="lf-tg",
         )

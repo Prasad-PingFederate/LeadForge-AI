@@ -1,0 +1,106 @@
+import logging
+from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, HTTPException, Query
+
+from app.core.deal_analyzer import (
+    fetch_live_deals,
+    get_deal_by_asin,
+    search_live_deals,
+    get_top_converting_deals,
+    compute_commission_estimate,
+    to_canonical_affiliate_url,
+)
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/deals", tags=["B2C Deals"])
+
+
+@router.get("/live")
+async def list_live_deals(
+    query: Optional[str] = Query(None, description="Search term in title, brand, or category"),
+    category: Optional[str] = Query(None, description="Filter by category (e.g. Home & Kitchen, Personal Care)"),
+    max_price: Optional[float] = Query(None, description="Max effective price in INR"),
+    min_discount: Optional[int] = Query(None, description="Minimum discount percentage"),
+    limit: int = Query(15, ge=1, le=100),
+    force_refresh: bool = Query(False, description="Bypass cache and re-fetch from upstream"),
+):
+    """Returns verified live deals from BharatBazaro with commission estimates."""
+    if force_refresh:
+        all_deals = await fetch_live_deals(force_refresh=True)
+    else:
+        all_deals = await fetch_live_deals()
+
+    if query or category or max_price is not None or min_discount is not None:
+        matched = await search_live_deals(
+            query=query or "",
+            category=category,
+            max_price=max_price,
+            min_discount=min_discount,
+            limit=limit,
+        )
+    else:
+        matched = all_deals[:limit]
+
+    # Enrich with canonical affiliate link and commission info
+    enriched_deals = []
+    for d in matched:
+        asin = d.get("asin") or ""
+        cat = d.get("category", "General")
+        price = float(d.get("effective_price") or d.get("list_price") or 599.0)
+        comm = compute_commission_estimate(cat, price)
+
+        enriched_deals.append({
+            **d,
+            "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag="bb-api"),
+            "commission_info": comm,
+        })
+
+    return {
+        "count": len(enriched_deals),
+        "total_available": len(all_deals),
+        "source": settings.bharatbazaro_live_deals_url,
+        "deals": enriched_deals,
+    }
+
+
+@router.get("/live/{asin}")
+async def get_live_deal_by_asin(asin: str):
+    """Fetches a single verified deal by 10-char Amazon ASIN."""
+    deal = await get_deal_by_asin(asin)
+    if not deal:
+        raise HTTPException(status_code=404, detail=f"Deal with ASIN {asin} not found in live feed")
+
+    cat = deal.get("category", "General")
+    price = float(deal.get("effective_price") or deal.get("list_price") or 599.0)
+    comm = compute_commission_estimate(cat, price)
+
+    return {
+        **deal,
+        "canonical_affiliate_url": to_canonical_affiliate_url(deal.get("asin", asin), subtag="bb-api-detail"),
+        "commission_info": comm,
+    }
+
+
+@router.get("/top-converting")
+async def list_top_converting_deals(limit: int = Query(10, ge=1, le=50)):
+    """Returns top high-margin impulse deals (₹99-₹2999 sweet spot) from BharatBazaro."""
+    top_deals = await get_top_converting_deals(limit=limit)
+    enriched = []
+    for d in top_deals:
+        asin = d.get("asin") or ""
+        cat = d.get("category", "General")
+        price = float(d.get("effective_price") or d.get("list_price") or 599.0)
+        comm = compute_commission_estimate(cat, price)
+
+        enriched.append({
+            **d,
+            "canonical_affiliate_url": to_canonical_affiliate_url(asin, subtag="bb-top"),
+            "commission_info": comm,
+        })
+
+    return {
+        "count": len(enriched),
+        "deals": enriched,
+    }

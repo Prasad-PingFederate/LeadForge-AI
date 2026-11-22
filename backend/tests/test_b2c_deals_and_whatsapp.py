@@ -5,10 +5,15 @@ from app.core.deal_analyzer import (
     compute_commission_estimate,
     format_whatsapp_deal_post,
     format_telegram_deal_post,
+    fetch_live_deals,
+    get_deal_by_asin,
+    search_live_deals,
+    get_top_converting_deals,
 )
 from app.core.cache import TTLCache
 from app.agents.profiler_agent import profiler_agent
 from app.agents.competitor_agent import competitor_agent
+from httpx import AsyncClient
 
 
 def test_extract_asin():
@@ -106,3 +111,62 @@ async def test_competitor_agent_b2c_deals_mode():
     assert len(intel["strategies"]) == 3
     channels = [s["channel"].lower() for s in intel["strategies"]]
     assert "whatsapp" in channels or "telegram" in channels
+
+
+@pytest.mark.asyncio
+async def test_fetch_live_deals_feed():
+    deals = await fetch_live_deals()
+    assert isinstance(deals, list)
+    assert len(deals) >= 5
+    first = deals[0]
+    assert "asin" in first
+    assert "effective_price" in first
+    assert "title" in first
+
+
+@pytest.mark.asyncio
+async def test_get_deal_by_asin():
+    # Test lookup of known item
+    deal = await get_deal_by_asin("B002MPPTB8")
+    assert deal is not None
+    assert deal["asin"] == "B002MPPTB8"
+    assert "Hawkins" in deal.get("title", "") or "Hawkins" in deal.get("brand", "")
+
+    # Non-existent ASIN
+    bad_deal = await get_deal_by_asin("NONEXIST01")
+    assert bad_deal is None
+
+
+@pytest.mark.asyncio
+async def test_search_and_top_live_deals():
+    kettle_deals = await search_live_deals(query="kettle", limit=5)
+    assert isinstance(kettle_deals, list)
+
+    top_deals = await get_top_converting_deals(limit=5)
+    assert len(top_deals) >= 1
+    assert "effective_price" in top_deals[0]
+
+
+@pytest.mark.asyncio
+async def test_deals_api_endpoints(async_client: AsyncClient):
+    # GET /api/deals/live
+    resp = await async_client.get("/api/deals/live?limit=5")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["count"] <= 5
+    assert "deals" in data
+    assert len(data["deals"]) > 0
+    first = data["deals"][0]
+    assert "dammaiprasad-21" in first["canonical_affiliate_url"]
+    assert "commission_info" in first
+
+    # GET /api/deals/top-converting
+    resp_top = await async_client.get("/api/deals/top-converting?limit=3")
+    assert resp_top.status_code == 200
+    assert len(resp_top.json()["deals"]) > 0
+
+    # GET /api/deals/live/{asin}
+    test_asin = first["asin"]
+    resp_detail = await async_client.get(f"/api/deals/live/{test_asin}")
+    assert resp_detail.status_code == 200
+    assert resp_detail.json()["asin"] == test_asin

@@ -25,8 +25,13 @@ async def profiler_node(state: LeadForgeState) -> Dict[str, Any]:
     logs = list(state.get("logs", []))
     logs.append(f"✓ Profiled {url} — extracted strategy profile for {icp_data.get('product_name')}")
 
+    deal_data = icp_data.get("deal_metadata")
+    if deal_data:
+        logs.append(f"✓ Linked BharatBazaro Deal: {deal_data.get('asin')} (₹{int(deal_data.get('effective_price', 0)):,} | {deal_data.get('discount_pct', 0)}% off | {deal_data.get('commission_rate_percent', 0)}% comm)")
+
     return {
         "icp_data": icp_data,
+        "deal_data": deal_data,
         "current_step": "profiling_completed",
         "progress_percent": 25,
         "logs": logs,

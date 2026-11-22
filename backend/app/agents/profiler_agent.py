@@ -8,6 +8,9 @@ from app.core.deal_analyzer import (
     extract_asin,
     to_canonical_affiliate_url,
     compute_commission_estimate,
+    get_deal_by_asin,
+    search_live_deals,
+    get_top_converting_deals,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,14 +114,70 @@ class ProfilerAgent:
             icp_dict["product_name"] = title.split("-")[0].split("|")[0].strip()
 
         if is_deal_mode:
-            category = icp_dict.get("category", "Home & Kitchen")
-            comm_info = compute_commission_estimate(category, 599.0)
-            icp_dict["deal_metadata"] = {
-                "asin": asin or "B09W2GFM7Y",
-                "canonical_affiliate_url": canonical_url,
-                "commission_rate_percent": comm_info["commission_rate_percent"],
-                "is_impulse_sweet_spot": comm_info["is_impulse_sweet_spot"],
-            }
+            # Query the live BharatBazaro feed for exact or matching deal
+            matched_deal = None
+            if asin:
+                matched_deal = await get_deal_by_asin(asin)
+
+            if not matched_deal:
+                q_text = f"{user_description} {url} {crawl_data.get('title', '')}"
+                search_results = await search_live_deals(query=q_text, limit=1)
+                if search_results:
+                    matched_deal = search_results[0]
+
+            if not matched_deal:
+                top_results = await get_top_converting_deals(limit=1)
+                if top_results:
+                    matched_deal = top_results[0]
+
+            if matched_deal:
+                deal_asin = asin or matched_deal.get("asin") or "B002MPPTB8"
+                deal_title = matched_deal.get("title") or icp_dict.get("product_name") or "Deal Item"
+                category = matched_deal.get("category") or icp_dict.get("category", "Home & Kitchen")
+                deal_price = float(matched_deal.get("effective_price") or matched_deal.get("list_price") or 599.0)
+                mrp = float(matched_deal.get("mrp") or (deal_price * 1.5))
+                disc_pct = int(matched_deal.get("discount_pct") or int(((mrp - deal_price) / mrp) * 100))
+                savings = int(matched_deal.get("savings_inr") or (mrp - deal_price))
+                rating = float(matched_deal.get("rating") or 4.3)
+                review_count = int(matched_deal.get("review_count") or 4500)
+                image_url = matched_deal.get("image_url", "")
+                deal_url = to_canonical_affiliate_url(deal_asin, subtag="lf-deal")
+                comm_info = compute_commission_estimate(category, deal_price)
+
+                icp_dict["product_name"] = deal_title
+                icp_dict["category"] = category
+                icp_dict["value_proposition"] = (
+                    f"Verified {disc_pct}% price drop at ₹{int(deal_price):,} "
+                    f"(Save ₹{int(savings):,}) with 1-Day Prime Delivery"
+                )
+                icp_dict["deal_metadata"] = {
+                    "asin": deal_asin,
+                    "title": deal_title,
+                    "brand": matched_deal.get("brand", ""),
+                    "category": category,
+                    "effective_price": deal_price,
+                    "mrp": mrp,
+                    "discount_pct": disc_pct,
+                    "savings_inr": savings,
+                    "rating": rating,
+                    "review_count": review_count,
+                    "image_url": image_url,
+                    "canonical_affiliate_url": deal_url,
+                    "commission_rate_percent": comm_info["commission_rate_percent"],
+                    "estimated_commission_rupees": comm_info["estimated_commission_rupees"],
+                    "is_impulse_sweet_spot": comm_info["is_impulse_sweet_spot"],
+                    "is_zero_roi": comm_info["is_zero_roi"],
+                }
+            else:
+                category = icp_dict.get("category", "Home & Kitchen")
+                comm_info = compute_commission_estimate(category, 599.0)
+                icp_dict["deal_metadata"] = {
+                    "asin": asin or "B09W2GFM7Y",
+                    "canonical_affiliate_url": canonical_url,
+                    "commission_rate_percent": comm_info["commission_rate_percent"],
+                    "is_impulse_sweet_spot": comm_info["is_impulse_sweet_spot"],
+                }
+
             if not icp_dict.get("target_roles"):
                 icp_dict["target_roles"] = ["Budget Shoppers", "Home & Kitchen Buyers", "Deal Seekers"]
             if not icp_dict.get("target_industries"):
