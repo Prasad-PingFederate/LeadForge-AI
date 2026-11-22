@@ -21,14 +21,18 @@ import {
   Check,
   XCircle,
   AlertTriangle,
+  Copy,
+  Plus,
 } from "lucide-react";
 import { fetchRevenueSummary, trackDealClick } from "@/lib/api";
-import { RevenueSummary } from "@/types";
+import { RevenueSummary, PostAttribution } from "@/types";
 
 export default function RevenueDashboard() {
   const [data, setData] = useState<RevenueSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copiedSubtag, setCopiedSubtag] = useState<string | null>(null);
+  const [loggingClickId, setLoggingClickId] = useState<string | null>(null);
 
   // Phase 4: Interactive ₹10 Lakh Math Calculator State
   const [calcTarget, setCalcTarget] = useState<number>(1000000);
@@ -37,6 +41,31 @@ export default function RevenueDashboard() {
   const [calcCommRate, setCalcCommRate] = useState<number>(8.0);
   const [calcConvRate, setCalcConvRate] = useState<number>(1.5); // %
   const [calcClicksPerPost, setCalcClicksPerPost] = useState<number>(75);
+
+  const handleManualLogClick = async (post: PostAttribution) => {
+    try {
+      setLoggingClickId(post.id);
+      await trackDealClick({
+        asin: post.asin,
+        channel: post.channel,
+        subtag: post.subtag,
+        outreach_id: post.id.startsWith("post-") ? undefined : post.id,
+      });
+      await loadData();
+    } catch (err) {
+      console.error("Failed to log click manually:", err);
+    } finally {
+      setLoggingClickId(null);
+    }
+  };
+
+  const handleCopyShortLink = (subtag: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const url = `${origin}/go/${subtag}`;
+    navigator.clipboard.writeText(url);
+    setCopiedSubtag(subtag);
+    setTimeout(() => setCopiedSubtag(null), 2000);
+  };
 
   const loadData = async () => {
     try {
@@ -430,6 +459,153 @@ export default function RevenueDashboard() {
             </div>
             <span className="text-[10px] text-slate-400 block mt-1">Price drop hashtags</span>
           </div>
+        </div>
+      </div>
+
+      {/* Feature 1: Full Click Attribution Dashboard (Highest Priority) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-950/40">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+                Feature 1: Attribution Engine
+              </span>
+              <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                <MousePointerClick className="w-4 h-4 text-emerald-400" />
+                <span>Full Click & Conversion Attribution Dashboard</span>
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Every broadcast post tracked via unique <code className="text-emerald-300 font-mono">ascsubtag</code>. Logs real-time clicks from <code className="text-cyan-300">/go/:subtag</code> and manual log actions, calculating projected commission at 1.0%–1.5% conversion rates.
+            </p>
+          </div>
+          <div className="text-xs font-mono text-slate-400">
+            Total Tracked Posts: <span className="font-bold text-emerald-400">{data?.posts_attribution?.length || 0}</span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
+              <tr>
+                <th className="py-3 px-4">Post Subtag / Short URL</th>
+                <th className="py-3 px-4">Channel</th>
+                <th className="py-3 px-4">Deal Title / ASIN</th>
+                <th className="py-3 px-4 text-center">Tracked Clicks</th>
+                <th className="py-3 px-4 text-center">Est. Conversions (1%–1.5%)</th>
+                <th className="py-3 px-4 text-emerald-400 font-bold">Est. Comm. Potential (1%–1.5%)</th>
+                <th className="py-3 px-4 text-right">Quick Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 text-slate-300">
+              {data?.posts_attribution && data.posts_attribution.length > 0 ? (
+                data.posts_attribution.map((post) => {
+                  const estConvLow = (post.clicks * 0.01).toFixed(1);
+                  const estConvHigh = (post.clicks * 0.015).toFixed(1);
+                  return (
+                    <tr key={post.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <code className="text-[11px] font-mono text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/60 font-semibold">
+                            {post.subtag}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyShortLink(post.subtag)}
+                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                            title="Copy short redirect link"
+                          >
+                            {copiedSubtag === post.subtag ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                          /go/{post.subtag}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                            post.channel === "whatsapp"
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                              : post.channel === "telegram"
+                                ? "bg-sky-950 text-sky-300 border border-sky-800"
+                                : post.channel === "reddit"
+                                  ? "bg-orange-950 text-orange-300 border border-orange-800"
+                                  : "bg-slate-950 text-slate-300 border border-slate-800"
+                          }`}
+                        >
+                          {post.channel}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-100 max-w-xs truncate" title={post.title}>
+                          {post.title}
+                        </div>
+                        <div className="font-mono text-[10px] text-slate-500">
+                          ASIN: {post.asin} · ₹{post.deal_price.toLocaleString("en-IN")} · Comm {post.commission_rate_percent}% (₹{post.commission_per_sale.toFixed(0)}/sale)
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4 text-center font-mono">
+                        <div className="inline-flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-100 bg-slate-950 px-2.5 py-0.5 rounded border border-slate-800">
+                            {post.clicks}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleManualLogClick(post)}
+                            disabled={loggingClickId === post.id}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 text-[10px] font-semibold transition-colors disabled:opacity-50"
+                            title="Manually log a click for this post"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>Log Click</span>
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4 text-center font-mono text-slate-300">
+                        <span className="bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800/80 text-[11px]">
+                          {estConvLow} – {estConvHigh} sales
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-4 font-mono font-bold text-sm text-emerald-400 bg-emerald-950/10">
+                        ₹{post.est_commission_1pct.toFixed(2)} – ₹{post.est_commission_1_5pct.toFixed(2)}
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <a
+                            href={`http://127.0.0.1:8000/go/${post.subtag}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium transition-colors"
+                            title="Test short link HTTP 302 redirect to Amazon with affiliate tag"
+                          >
+                            <span>Test Redirect</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-slate-500">
+                    No tracked posts yet. Generate deals to view click attribution and commission potential.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

@@ -177,13 +177,17 @@ async def test_deals_api_endpoints(async_client: AsyncClient):
 
 
 def test_unique_channel_subtags():
-    sub_wa = generate_channel_subtag("whatsapp", campaign_id="camp12345", asin="B002MPPTB8")
+    sub_wa = generate_channel_subtag("whatsapp", asin="b002mpptb8")
     assert sub_wa.startswith("lf-wa-")
-    assert "camp12" in sub_wa
+    assert "b002mpptb8" in sub_wa
 
-    sub_tg = generate_channel_subtag("telegram", asin="B002MPPTB8")
+    sub_tg = generate_channel_subtag("telegram", asin="b091cr2fxy")
     assert sub_tg.startswith("lf-tg-")
-    assert "B002MPPTB8" in sub_tg
+    assert "b091cr2fxy" in sub_tg
+
+    sub_camp = generate_channel_subtag("whatsapp", campaign_id="camp12345")
+    assert sub_camp.startswith("lf-wa-")
+    assert "camp1234" in sub_camp
 
     sub_rd = generate_channel_subtag("reddit")
     assert sub_rd.startswith("lf-rd-")
@@ -195,13 +199,13 @@ async def test_revenue_and_click_tracking(async_client: AsyncClient):
     click_payload = {
         "asin": "B002MPPTB8",
         "channel": "whatsapp",
-        "subtag": "lf-wa-20261122-test",
+        "subtag": "lf-wa-20261122-b002mpptb8",
     }
     resp_click = await async_client.post("/api/deals/click", json=click_payload)
     assert resp_click.status_code == 201
     assert resp_click.json()["success"] is True
 
-    # 2. Get Revenue Summary
+    # 2. Get Revenue Summary with Posts Attribution (Feature 1)
     resp_rev = await async_client.get("/api/revenue/summary")
     assert resp_rev.status_code == 200
     rev_data = resp_rev.json()
@@ -210,14 +214,27 @@ async def test_revenue_and_click_tracking(async_client: AsyncClient):
     assert "clicks_by_channel" in rev_data
     assert rev_data["clicks_by_channel"]["whatsapp"] >= 1
     assert len(rev_data["recent_deals"]) > 0
-    assert "estimated_commission_rupees" in rev_data["recent_deals"][0]
+    assert "posts_attribution" in rev_data
+    assert len(rev_data["posts_attribution"]) > 0
+    first_post = rev_data["posts_attribution"][0]
+    assert "short_url" in first_post
+    assert "est_commission_1pct" in first_post
+    assert "est_commission_1_5pct" in first_post
 
-    # 3. Test HTTP 302 Short link redirect
-    resp_redir = await async_client.get("/r/lf-wa-20261122-B002MPPTB8", follow_redirects=False)
-    assert resp_redir.status_code == 302
-    assert "amazon.in" in resp_redir.headers["location"]
-    assert "dammaiprasad-21" in resp_redir.headers["location"]
-    assert "lf-wa-20261122-B002MPPTB8" in resp_redir.headers["location"]
+    # 3. Test HTTP 302 Short link redirects (/r/, /go/, /a/)
+    resp_redir_r = await async_client.get("/r/lf-wa-20261122-b002mpptb8", follow_redirects=False)
+    assert resp_redir_r.status_code == 302
+    assert "amazon.in" in resp_redir_r.headers["location"]
+    assert "dammaiprasad-21" in resp_redir_r.headers["location"]
+
+    resp_redir_go = await async_client.get("/go/lf-wa-20261122-b002mpptb8", follow_redirects=False)
+    assert resp_redir_go.status_code == 302
+    assert "amazon.in" in resp_redir_go.headers["location"]
+
+    resp_redir_a = await async_client.get("/a/B002MPPTB8", follow_redirects=False)
+    assert resp_redir_a.status_code == 302
+    assert "amazon.in" in resp_redir_a.headers["location"]
+    assert "B002MPPTB8" in resp_redir_a.headers["location"]
 
 
 def test_deal_quality_filter():
@@ -262,10 +279,26 @@ def test_deal_quality_filter():
 
 def test_where_to_post_recommendations():
     recs = generate_where_to_post_recommendations("Home & Kitchen", 599.0, "Kettle")
-    assert len(recs["whatsapp_groups"]) >= 1
-    assert len(recs["telegram_channels"]) >= 1
-    assert "r/dealsforindia" in recs["subreddits"]
-    assert any("Kitchen" in h for h in recs["hashtags"])
+    # All 5 WhatsApp group personas required by Phase 2
+    wa_types = [g["type"] for g in recs["whatsapp_groups"]]
+    assert "Homemaker" in wa_types
+    assert "Hostel" in wa_types
+    assert "Budget" in wa_types
+    assert "Office" in wa_types
+    assert "College" in wa_types
+
+    # Telegram Indian Deal Alerts
+    assert any("indiandealalerts" in ch["handle"] or "lootdeals" in ch["handle"] for ch in recs["telegram_channels"])
+
+    # Subreddits
+    sub_names = [s["name"] for s in recs["subreddits"]]
+    assert "r/dealsforindia" in sub_names
+    assert "r/GadgetsIndia" in sub_names
+
+    # X Hashtags
+    assert "#AmazonDeals" in recs["hashtags"]
+    assert "#Loot" in recs["hashtags"]
+    assert "#PriceDrop" in recs["hashtags"]
     assert "best_posting_window" in recs
 
 

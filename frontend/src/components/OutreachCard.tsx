@@ -59,6 +59,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
 
   const handleOpenWhatsApp = () => {
     const textToShare = whatsappMsg || step1;
+    handleCopy(textToShare);
     const asinMatch = (message.deal_affiliate_url || "").match(/dp\/([A-Z0-9]{10})/i);
     trackDealClick({
       asin: asinMatch ? asinMatch[1] : "B002MPPTB8",
@@ -72,6 +73,7 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
 
   const handleOpenTelegram = () => {
     const textToShare = telegramMsg || step1;
+    handleCopy(textToShare);
     const affUrl = message.deal_affiliate_url || "";
     const asinMatch = affUrl.match(/dp\/([A-Z0-9]{10})/i);
     trackDealClick({
@@ -214,15 +216,14 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         {/* Status pill & Proof */}
         <div className="flex items-center gap-2">
           <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-              status === "sent"
-                ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                : status === "sent_dry_run"
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider ${status === "sent"
+              ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
+              : status === "sent_dry_run"
                 ? "bg-blue-950 text-blue-400 border border-blue-800"
                 : status === "approved"
-                ? "bg-amber-950 text-amber-400 border border-amber-800"
-                : "bg-slate-800 text-slate-400 border border-slate-700"
-            }`}
+                  ? "bg-amber-950 text-amber-400 border border-amber-800"
+                  : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}
           >
             {status.replace("_", " ")}
           </span>
@@ -246,11 +247,10 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         {/* WhatsApp Tab */}
         <button
           onClick={() => setActiveTab("whatsapp")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            activeTab === "whatsapp"
-              ? "border-emerald-500 text-emerald-400 font-bold"
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === "whatsapp"
+            ? "border-emerald-500 text-emerald-400 font-bold"
+            : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
         >
           <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
           <span>🔥 WhatsApp Broadcast (VIP)</span>
@@ -259,11 +259,10 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         {/* Telegram Tab */}
         <button
           onClick={() => setActiveTab("telegram")}
-          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-            activeTab === "telegram"
-              ? "border-sky-500 text-sky-400 font-bold"
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
+          className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${activeTab === "telegram"
+            ? "border-sky-500 text-sky-400 font-bold"
+            : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
         >
           <Send className="w-3.5 h-3.5 text-sky-400" />
           <span>🚨 Telegram Price Drop</span>
@@ -323,16 +322,16 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
               {activeTab === "whatsapp"
                 ? "WhatsApp VIP Broadcast (Bold formatting, Rupee savings & Universal affiliate tag)"
                 : activeTab === "telegram"
-                ? "Telegram Loot Deal Alert (Markdown formatted with Instant Buy link)"
-                : activeTab === "step1"
-                ? "Cold Email Step 1 (Hook & CTA)"
-                : activeTab === "step2"
-                ? "Cold Email Step 2 (Customer Proof)"
-                : activeTab === "step3"
-                ? "Cold Email Step 3 (Breakup)"
-                : activeTab === "linkedin"
-                ? "LinkedIn Connection Note / DM"
-                : "Helpful Community Reply"}
+                  ? "Telegram Loot Deal Alert (Markdown formatted with Instant Buy link)"
+                  : activeTab === "step1"
+                    ? "Cold Email Step 1 (Hook & CTA)"
+                    : activeTab === "step2"
+                      ? "Cold Email Step 2 (Customer Proof)"
+                      : activeTab === "step3"
+                        ? "Cold Email Step 3 (Breakup)"
+                        : activeTab === "linkedin"
+                          ? "LinkedIn Connection Note / DM"
+                          : "Helpful Community Reply"}
             </label>
 
             {/* Quick 1-Click Copy / Share for WhatsApp & Telegram */}
@@ -344,16 +343,16 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                     activeTab === "whatsapp"
                       ? whatsappMsg
                       : activeTab === "telegram"
-                      ? telegramMsg
-                      : activeTab === "step1"
-                      ? step1
-                      : activeTab === "step2"
-                      ? step2
-                      : activeTab === "step3"
-                      ? step3
-                      : activeTab === "linkedin"
-                      ? linkedinDm
-                      : socialReply;
+                        ? telegramMsg
+                        : activeTab === "step1"
+                          ? step1
+                          : activeTab === "step2"
+                            ? step2
+                            : activeTab === "step3"
+                              ? step3
+                              : activeTab === "linkedin"
+                                ? linkedinDm
+                                : socialReply;
                   handleCopy(content);
                 }}
                 className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
@@ -366,10 +365,11 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                 <button
                   type="button"
                   onClick={handleOpenWhatsApp}
-                  className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-[11px] text-white font-bold transition-colors shadow-sm"
+                  title="Copies message to clipboard, logs click, and opens WhatsApp Web"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>Send in WhatsApp Web ↗</span>
+                  <span>Copy Message + Open WhatsApp Web</span>
                 </button>
               )}
 
@@ -377,10 +377,11 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
                 <button
                   type="button"
                   onClick={handleOpenTelegram}
-                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 text-[11px] text-white font-bold transition-colors shadow-sm"
+                  title="Copies message to clipboard, logs click, and opens Telegram"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>Post to Telegram ↗</span>
+                  <span>Copy Message + Open Telegram</span>
                 </button>
               )}
 
@@ -408,27 +409,60 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
             </div>
           </div>
 
-          {/* Where to Post Recommendations Box (Phase 2) */}
-          <div className="p-3 my-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs space-y-2">
-            <div className="flex items-center justify-between text-slate-300 font-bold uppercase tracking-wider text-[10px]">
-              <span className="flex items-center gap-1.5 text-emerald-400">
+          {/* Where to Post Distribution Panel (Feature 2) */}
+          <div className="p-3.5 my-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
                 <Target className="w-3.5 h-3.5" />
-                <span>Where to Post for ₹10L Conversion:</span>
+                <span>Feature 2: "Where to Post" Distribution Panel</span>
               </span>
-              <span className="text-slate-500 font-mono">Prime Shopping Window: 8:30–10:30 AM & 7:30–9:30 PM</span>
+              <span className="text-slate-400 font-mono text-[10px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                Prime Shopping Window: 8:30–10:30 AM & 7:30–9:30 PM IST
+              </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-              <div className="p-2 rounded bg-slate-900 border border-emerald-950/80">
-                <span className="font-bold text-emerald-300 block mb-0.5">WhatsApp Groups:</span>
-                <span className="text-slate-400">Homemakers VIP, Family Savings Club, College Hostel Loots</span>
+
+            {/* 5 WhatsApp Group Personas */}
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                Suggested WhatsApp Group Types (High-Intent Conversion):
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+                <div className="p-2 rounded bg-slate-900 border border-emerald-900/60">
+                  <span className="font-bold text-emerald-300 block text-[10px]">🏠 Homemaker</span>
+                  <span className="text-slate-400 text-[10px] leading-tight block mt-0.5">Kitchen, cookware & pantry essentials</span>
+                </div>
+                <div className="p-2 rounded bg-slate-900 border border-sky-900/60">
+                  <span className="font-bold text-sky-300 block text-[10px]">🎒 Hostel</span>
+                  <span className="text-slate-400 text-[10px] leading-tight block mt-0.5">Quick meal prep & gadgets under ₹999</span>
+                </div>
+                <div className="p-2 rounded bg-slate-900 border border-amber-900/60">
+                  <span className="font-bold text-amber-300 block text-[10px]">💰 Budget</span>
+                  <span className="text-slate-400 text-[10px] leading-tight block mt-0.5">≥40% price drop flash alerts</span>
+                </div>
+                <div className="p-2 rounded bg-slate-900 border border-purple-900/60">
+                  <span className="font-bold text-purple-300 block text-[10px]">💼 Office</span>
+                  <span className="text-slate-400 text-[10px] leading-tight block mt-0.5">Desk comfort, hydration & grooming</span>
+                </div>
+                <div className="p-2 rounded bg-slate-900 border border-rose-900/60">
+                  <span className="font-bold text-rose-300 block text-[10px]">🎓 College</span>
+                  <span className="text-slate-400 text-[10px] leading-tight block mt-0.5">Pocket-friendly youth lifestyle & audio</span>
+                </div>
               </div>
-              <div className="p-2 rounded bg-slate-900 border border-sky-950/80">
-                <span className="font-bold text-sky-300 block mb-0.5">Telegram Channels:</span>
-                <span className="text-slate-400">t.me/lootdealsindia, t.me/kitchengadgetsindia</span>
+            </div>
+
+            {/* Telegram, Reddit, and X Channels */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-900 text-[11px]">
+              <div className="p-2 rounded bg-slate-900/90 border border-slate-800">
+                <span className="font-bold text-sky-400 block text-[10px] mb-0.5">Telegram Channels (Indian Deal Alert Style):</span>
+                <span className="text-slate-300 text-[10px] font-mono block">t.me/indiandealalerts · t.me/lootdealsindia</span>
               </div>
-              <div className="p-2 rounded bg-slate-900 border border-orange-950/80">
-                <span className="font-bold text-orange-300 block mb-0.5">Reddit & 𝕏:</span>
-                <span className="text-slate-400">r/dealsforindia, r/GadgetsIndia | #AmazonDeals #PriceDrop</span>
+              <div className="p-2 rounded bg-slate-900/90 border border-slate-800">
+                <span className="font-bold text-orange-400 block text-[10px] mb-0.5">Reddit Communities:</span>
+                <span className="text-slate-300 text-[10px] font-mono block">r/dealsforindia · r/GadgetsIndia</span>
+              </div>
+              <div className="p-2 rounded bg-slate-900/90 border border-slate-800">
+                <span className="font-bold text-slate-300 block text-[10px] mb-0.5">𝕏 Price Drop Hashtags:</span>
+                <span className="text-slate-400 text-[10px] font-mono block">#AmazonDeals #Loot #PriceDrop</span>
               </div>
             </div>
           </div>
@@ -439,16 +473,16 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
               activeTab === "whatsapp"
                 ? whatsappMsg
                 : activeTab === "telegram"
-                ? telegramMsg
-                : activeTab === "step1"
-                ? step1
-                : activeTab === "step2"
-                ? step2
-                : activeTab === "step3"
-                ? step3
-                : activeTab === "linkedin"
-                ? linkedinDm
-                : socialReply
+                  ? telegramMsg
+                  : activeTab === "step1"
+                    ? step1
+                    : activeTab === "step2"
+                      ? step2
+                      : activeTab === "step3"
+                        ? step3
+                        : activeTab === "linkedin"
+                          ? linkedinDm
+                          : socialReply
             }
             onChange={(e) => {
               const val = e.target.value;
@@ -467,11 +501,10 @@ export default function OutreachCard({ message, onRefresh }: OutreachCardProps) 
         {/* Feedback alert banner */}
         {sendResult && (
           <div
-            className={`p-2.5 rounded-lg text-xs font-medium ${
-              sendResult.startsWith("✓")
-                ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60"
-                : "bg-rose-950/70 text-rose-400 border border-rose-800/60"
-            }`}
+            className={`p-2.5 rounded-lg text-xs font-medium ${sendResult.startsWith("✓")
+              ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60"
+              : "bg-rose-950/70 text-rose-400 border border-rose-800/60"
+              }`}
           >
             {sendResult}
           </div>

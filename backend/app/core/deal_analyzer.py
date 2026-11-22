@@ -279,43 +279,64 @@ def generate_where_to_post_recommendations(
 ) -> Dict[str, Any]:
     """
     Distribution Engine Recommendations (Phase 2):
-    Suggests high-converting WhatsApp group personas, Telegram channels,
-    subreddits, and hashtags for maximum click intent.
+    Suggests high-converting WhatsApp group personas (Homemaker, Hostel, Budget, Office, College),
+    Telegram channels (Indian Deal Alert style), subreddits, and hashtags for maximum click intent.
     """
-    cat_lower = category.lower()
+    cat_lower = (category or "").lower()
+    price_val = int(deal_price or 499)
+    clean_title = (title or "Deal Drop").strip()
+    short_title = clean_title[:32]
 
-    if any(k in cat_lower for k in ["kitchen", "home", "cooker", "appliance"]):
-        wa_groups = [
-            {"name": "Kitchen & Homemakers VIP Broadcast", "angle": "Daily cooking savings, verified brand durability"},
-            {"name": "Hostel & Bachelor Fast Kitchen Deals", "angle": "Quick meal prep gadgets under ₹1,000"},
-            {"name": "Smart Family Home Savings Group", "angle": "Replacement utility & Prime free delivery"},
-        ]
-        tg_channels = ["t.me/kitchengadgetsindia", "t.me/lootdealsindia", "t.me/home_deals_alert"]
-        subreddits = ["r/dealsforindia", "r/indiasocial", "r/GadgetsIndia"]
-        hashtags = ["#KitchenDeals", "#HomeAppliance", "#AmazonPriceDrop", "#LootDealsIndia", "#BharatBazaro"]
-        best_time = "Morning 8:30 AM – 10:30 AM & Evening 7:30 PM – 9:30 PM"
+    wa_groups = [
+        {
+            "type": "Homemaker",
+            "name": "Homemaker & Family Savings VIP",
+            "angle": f"Kitchen, pantry & home utility; verified brand quality for {short_title}",
+            "badge": "🏠 Homemaker",
+        },
+        {
+            "type": "Hostel",
+            "name": "Hostel & Bachelor Fast Living",
+            "angle": f"Quick meal prep & daily room essentials under ₹{price_val:,}; zero hassle",
+            "badge": "🎒 Hostel",
+        },
+        {
+            "type": "Budget",
+            "name": "Budget Deal Hunters & Loot Alerts",
+            "angle": "Deep discount price drop; high impulse checkout before price bounce",
+            "badge": "💰 Budget",
+        },
+        {
+            "type": "Office",
+            "name": "Office & Desk Lifestyle Group",
+            "angle": "Workplace desk comfort, hydration & productivity gear",
+            "badge": "💼 Office",
+        },
+        {
+            "type": "College",
+            "name": "College Campus & Youth Steals",
+            "angle": "Pocket-friendly lifestyle drops under ₹999 for students",
+            "badge": "🎓 College",
+        },
+    ]
 
-    elif any(k in cat_lower for k in ["beauty", "personal", "grocery"]):
-        wa_groups = [
-            {"name": "Beauty & Skincare Steals Club", "angle": "Authentic brand discounts vs counterfeit local knockoffs"},
-            {"name": "Daily Grocery & Household Loot Alert", "angle": "Stock-up essential under ₹499 with lightning delivery"},
-            {"name": "College Grooming & Lifestyle Deals", "angle": "Personal care price drops under ₹300"},
-        ]
-        tg_channels = ["t.me/lootdealsindia", "t.me/beautylootsindia", "t.me/grocerydealsalert"]
-        subreddits = ["r/dealsforindia", "r/IndianSkincareAddicts", "r/indiasocial"]
-        hashtags = ["#BeautyDeals", "#DailyEssentials", "#AmazonLoot", "#PriceDropAlert", "#BharatBazaro"]
+    tg_channels = [
+        {"name": "Indian Deal Alerts", "handle": "t.me/indiandealalerts", "desc": "Top trending flash drops & Amazon loot"},
+        {"name": "Loot Deals India", "handle": "t.me/lootdealsindia", "desc": "Sub-₹999 price drop alerts with verified stock"},
+        {"name": "Amazon Flipkart Loots", "handle": "t.me/amazon_flipkart_loots", "desc": "Instant coupon links & lightning deals"},
+    ]
+
+    subreddits = [
+        {"name": "r/dealsforindia", "url": "https://reddit.com/r/dealsforindia", "desc": "India's premier deals community"},
+        {"name": "r/GadgetsIndia", "url": "https://reddit.com/r/GadgetsIndia", "desc": "Tech, appliances & smart lifestyle"},
+        {"name": "r/indiasocial", "url": "https://reddit.com/r/indiasocial", "desc": "Casual everyday recommendations"},
+    ]
+
+    hashtags = ["#AmazonDeals", "#Loot", "#PriceDrop", "#AmazonPriceDrop", "#BharatBazaro"]
+
+    best_time = "Morning 8:30 AM – 10:30 AM & Evening 7:30 PM – 9:30 PM"
+    if any(k in cat_lower for k in ["beauty", "personal", "grocery"]):
         best_time = "Afternoon 1:30 PM – 3:30 PM & Night 9:00 PM – 11:00 PM"
-
-    else:
-        wa_groups = [
-            {"name": "Tech & Gadget Bargain Hunters", "angle": "Impulse accessory drops under ₹1,499 with 1-Yr warranty"},
-            {"name": "Student & Desk Setup Deals", "angle": "Budget peripherals and workspace enhancers"},
-            {"name": "Loot Price Drop Flash Alerts", "angle": "All-time low lightning deal with instant checkout"},
-        ]
-        tg_channels = ["t.me/lootdealsindia", "t.me/amazon_flipkart_loots", "t.me/techdeals_india"]
-        subreddits = ["r/dealsforindia", "r/GadgetsIndia", "r/IndianGaming"]
-        hashtags = ["#AmazonDeals", "#TechDeals", "#PriceDrop", "#LootDealsIndia", "#BharatBazaro"]
-        best_time = "Evening 6:00 PM – 9:30 PM"
 
     return {
         "whatsapp_groups": wa_groups,
@@ -500,11 +521,12 @@ def generate_channel_subtag(
         "email": "em",
     }.get(channel.lower(), channel.lower()[:2])
 
-    ident = "bb"
-    if campaign_id:
-        ident = campaign_id.replace("-", "")[:6]
-    elif asin:
-        ident = asin.upper()[:10]
+    if asin:
+        ident = asin.strip().lower()[:10]
+    elif campaign_id:
+        ident = campaign_id.replace("-", "").lower()[:8]
+    else:
+        ident = "deal"
 
     return f"lf-{ch}-{d}-{ident}"
 

@@ -155,6 +155,22 @@ export interface ProgressState {
   error?: string | null;
 }
 
+export interface PostAttribution {
+  id: string;
+  channel: string;
+  title: string;
+  asin: string;
+  subtag: string;
+  short_url: string;
+  clicks: number;
+  deal_price: number;
+  commission_rate_percent: number;
+  commission_per_sale: number;
+  est_commission_1pct: number;
+  est_commission_1_5pct: number;
+  created_at: string;
+}
+
 export interface RevenueSummary {
   target_commission_inr: number;
   target_days: number;
@@ -200,11 +216,12 @@ export interface RevenueSummary {
       criteria: Record<string, boolean>;
     };
     where_to_post?: {
-      whatsapp_groups: Array<{ name: string; angle: string }>;
-      telegram_channels: string[];
-      subreddits: string[];
+      whatsapp_groups: Array<{ type?: string; name: string; angle: string; badge?: string }>;
+      telegram_channels: Array<string | { name: string; handle: string; desc?: string }>;
+      subreddits: Array<string | { name: string; url?: string; desc?: string }>;
       hashtags: string[];
       best_posting_window: string;
     };
   }>;
+  posts_attribution?: PostAttribution[];
 }
