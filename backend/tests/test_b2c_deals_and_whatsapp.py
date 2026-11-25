@@ -471,40 +471,30 @@ async def test_validate_deal_copy_engine():
 
 
 @pytest.mark.asyncio
-async def test_pool_ladder_live_deals_filtering():
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/deals/live?verdict=PROMOTE")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "pool_ladder" in data
-        assert "promote" in data["pool_ladder"]
-        assert "hold" in data["pool_ladder"]
-        assert "kill" in data["pool_ladder"]
-        for d in data["deals"]:
-            assert d["quality_verdict"]["verdict"] == "PROMOTE"
+async def test_pool_ladder_live_deals_filtering(async_client: AsyncClient):
+    resp = await async_client.get("/api/deals/live?verdict=PROMOTE")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "pool_ladder" in data
+    assert "promote" in data["pool_ladder"]
+    assert "hold" in data["pool_ladder"]
+    assert "kill" in data["pool_ladder"]
+    for d in data["deals"]:
+        assert d["quality_verdict"]["verdict"] == "PROMOTE"
 
 
 @pytest.mark.asyncio
-async def test_activity_feed_endpoint():
-    from httpx import AsyncClient, ASGITransport
-    from app.main import app
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/revenue/activity-feed")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "success"
-        assert len(data["activity_feed"]) > 0
-        first_item = data["activity_feed"][0]
-        assert "channel" in first_item
-        assert "subtag" in first_item
-        assert "est_commission_rupees" in first_item
-        assert "step_label" in first_item
+async def test_activity_feed_endpoint(async_client: AsyncClient):
+    resp = await async_client.get("/api/revenue/activity-feed")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "success"
+    assert len(data["activity_feed"]) > 0
+    first_item = data["activity_feed"][0]
+    assert "channel" in first_item
+    assert "subtag" in first_item
+    assert "est_commission_rupees" in first_item
+    assert "step_label" in first_item
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,7 @@
 # ⚡ LeadForge AI
 
+[![CI](https://github.com/Prasad-PingFederate/LeadForge-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/Prasad-PingFederate/LeadForge-AI/actions/workflows/ci.yml)
+
 > **Autonomous B2B Sales, Competitor Intelligence & Lead-Generation Agent Platform**  
 > Given ANY product or app website URL, LeadForge AI autonomously discovers, verifies, and scores high-intent buyers, analyzes competitor vulnerabilities, and drafts hyper-personalized outreach sequences.
 
